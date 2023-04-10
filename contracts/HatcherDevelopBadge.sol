@@ -2,20 +2,22 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AIDeveloperBadge is ERC721, Ownable {
-    uint256 public constant MINT_PRICE = 0.1 ether;
+contract HatcherDeveloperBadge is ERC721, Ownable {
+    using SafeMath for uint256;
 
-    //total supply
     string memory _base_uri = "";
+    //total supply
     uint256 private _totalSupply;
 
-    constructor() ERC721("AI Developer Badge", "AIDB") {}
+    constructor() ERC721("Hatcher Developer Badge", "HDB") {}
 
-    function mint() public payable {
-        require(msg.value >= MINT_PRICE, "Insufficient payment");
-
-        _safeMint(_msgSender(), _totalSupply + 1);
+    function mint() public {
+        require(balanceOf(_msgSender()) == 0, "Hatcher Developer Badge has already minted");
+        _safeMint(_msgSender(), _totalSupply);
+        _totalSupply = _totalSupply.add(1);
     }
 
     function setBaseURI(string memory baseURI) public onlyOwner {
@@ -61,8 +63,4 @@ contract AIDeveloperBadge is ERC721, Ownable {
         // do nothing
     }
 
-    /************* owner call *************** */
-    function withdraw() public onlyOwner {
-        payable(owner()).transfer(address(this).balance);
-    }
 }
