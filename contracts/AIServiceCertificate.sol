@@ -3,8 +3,13 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+from "./AIDeveloperBadge.sol" import AIDeveloperBadge
+
 contract AIServiceCertificate is ERC721, Ownable {
-    uint256 public constant REVENUE_SHARE_RATE = 20; // 20% revenue share uint256 public constant TOTAL_SUPPLY = 1000; AlDeveloperBadge private _alDeveloperBadge;
+    uint256 public constant MINT_PRICE = 0.1 ether;
+    uint256 public constant MAX_SERVICES_PER_USER = 10;
+
+    uint256 public constant REVENUE_SHARE_RATE = 20; // 20% revenue share Developer 
     struct Service {
         uint256 serviceId;
         address owner;
@@ -12,7 +17,10 @@ contract AIServiceCertificate is ERC721, Ownable {
         uint256 revenue;
     }
 
-    Service[] private _services;
+    // private members
+    mapping(address => Service[]) private _servicesData;
+    AIDeveloperBadge private _aiDeveloperBadge;
+    uint256 private _tokenSupply;
 
     constructor(
         address hatcherDeveloperBadge
@@ -20,16 +28,26 @@ contract AIServiceCertificate is ERC721, Ownable {
         _hatcherDeveloperBadge = HatcherDeveloperBadge(hatcherDeveloperBadge);
     }
 
-    function mint() public {
+    function mint(uint256 revenue) public {
         require(
             _hatcherDeveloperBadge.balanceOf(msg.sender) > 0,
             "You need an Hatcher Developer Badge to mint this NFT"
         );
+        require(msg.value >= MINT_PRICE, "Insufficient payment");
+
+        uint256 tokensPerUser = balanceOf(_msgSender());
         require(
-            totalSupply() < TOTAL_SUPPLY,
-            "Total supply of NFTs already minted"
+            tokensPerUser < MAX_TOKENS_PER_USER,
+            "Exceeded maximum number of tokens per user"
         );
-        _safeMint(msg.sender, totalSupply() + 1);
+        _safeMint(msg.sender, _tokenSupply + 1); // start from 1
+
+
+        
+    }
+
+    function _createService(address creator, serviceId, uint256 revenue) internal {{
+        Service[] storage s = _servicesData[]
     }
 
     function getServiceInfo(
