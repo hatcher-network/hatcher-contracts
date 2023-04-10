@@ -11,7 +11,7 @@ contract AIDeveloperBadge is ERC721, Ownable {
     mapping(address => uint256) private _tokenCounts;
     mapping(address => uint256) private _expiryDates;
 
-    constructor() ERC721("Al Developer Badge", "ALDEV") {}
+    constructor() ERC721("Hatcher Developer Badge", "AIDEV") {}
 
     function mint() public payable {
         require(totalSupply() < MAX_TOKENS, "Maximum number of tokens minted");

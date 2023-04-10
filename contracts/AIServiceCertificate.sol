@@ -15,15 +15,15 @@ contract AIServiceCertificate is ERC721, Ownable {
     Service[] private _services;
 
     constructor(
-        address alDeveloperBadge
-    ) ERC721("AI Service Certificate", "AISC") {
-        _alDeveloperBadge = AlDeveloperBadge(alDeveloperBadge);
+        address hatcherDeveloperBadge
+    ) ERC721("Hatcher Service Certificate", "AISC") {
+        _hatcherDeveloperBadge = HatcherDeveloperBadge(hatcherDeveloperBadge);
     }
 
     function mint() public {
         require(
-            _alDeveloperBadge.balanceOf(msg.sender) > 0,
-            "You need an Al Developer Badge to mint this NFT"
+            _hatcherDeveloperBadge.balanceOf(msg.sender) > 0,
+            "You need an Hatcher Developer Badge to mint this NFT"
         );
         require(
             totalSupply() < TOTAL_SUPPLY,
