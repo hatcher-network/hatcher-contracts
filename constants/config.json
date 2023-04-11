@@ -1,0 +1,32 @@
+{
+	"ChainIds": {
+		"ic": 0,
+		"goerli": 5,
+		"mumbai": 80001,
+		"arbi_goerli": 421613,
+		"op_goerli": 420
+	},
+  "revenueRate": 20,
+	"networks": {
+		"goerli": {
+			"HatcherDeveloperBadge": "",
+			"HatcherServiceCertificate": "",
+			"HatcherServicePassport": ""
+		},
+		"mumbai": {
+			"HatcherDeveloperBadge": "",
+			"HatcherServiceCertificate": "",
+			"HatcherServicePassport": ""
+		},
+		"arbi_goerli": {
+			"HatcherDeveloperBadge": "",
+			"HatcherServiceCertificate": "",
+      "HatcherServicePassport": ""
+		},
+		"op_goerli": {
+			"HatcherDeveloperBadge": "",
+			"HatcherServiceCertificate": "",
+      "HatcherServicePassport": ""
+		}
+	}
+}

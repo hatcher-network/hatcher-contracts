@@ -1,23 +1,17 @@
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox";
-
 require("dotenv").config();
 
 require('hardhat-contract-sizer');
+require("@nomiclabs/hardhat-waffle");
 require(`@nomiclabs/hardhat-etherscan`);
 require("solidity-coverage");
 require('hardhat-gas-reporter');
 require('hardhat-deploy');
 require('hardhat-deploy-ethers');
 require('@openzeppelin/hardhat-upgrades');
+// require('./tasks');
 
 const testPrivKey = process.env.TEST_PRIV_KEY;
-const scanApiKey = process.env.ETHERSCAN_API_KEY
-const mumbaiScanApiKey = process.env.PLOYGONSCAN_API_KEY
 
-/**
- * @type import('hardhat/config').HardhatUserConfig
- */
 module.exports = {
 
   solidity: {
@@ -95,13 +89,6 @@ module.exports = {
       url: "https://rpc-mumbai.maticvigil.com/",
       chainId: 80001,
       accounts: [testPrivKey],
-    }
-  },
-
-  etherscan: {
-    apiKey: {
-      goerli: scanApiKey,
-      polygonMumbai: mumbaiScanApiKey
     }
   }
 };
