@@ -5,30 +5,30 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {HatcherDeveloperBadge} from "./HatcherDevelopBadge.sol";
-import {HatcherServicePassport} from "./HatcherServicePasspord.sol";
+import {HatcherDeveloperBadge} from "./HatcherDeveloperBadge.sol";
+import {HatcherServicePassport} from "./HatcherServicePassport.sol";
 
 contract HatcherServiceCertificate is ERC721, Ownable {
     using SafeMath for uint256;
-    uint256 public constant MINT_PRICE = 0.1 ether;
+    uint256 public constant MINT_PRICE = 0.05 ether;
     uint256 public constant MAX_SERVICES_PER_USER = 10;
 
     uint256 private _revenueShareRate;
 
     struct Service {
         uint256 serviceId;
-        address payable owner;
+        address owner;
         uint256 createdTime;
+        uint256 userCount;
         uint256 maxUserLimit;
         uint256 fee; // use native token now
-        uint256 expiredTime;
         uint256 revenue;
     }
 
     // private members
     mapping(address => Service[]) private _servicesData; // creator => services
     HatcherDeveloperBadge private _hatcherDeveloperBadge;
-    HatcherServicePasspord private _hatcherServicePasspord;
+    HatcherServicePassport private _hatcherServicePassport;
     uint256 private _totalSupply;
 
     constructor(
@@ -39,12 +39,12 @@ contract HatcherServiceCertificate is ERC721, Ownable {
         _revenueShareRate = revenueShareRate;
     }
 
-    // call this first to set service password contract address
-    function init(address hatcherServicePasspord) external onlyOwner {
-        _hatcherServicePasspord = HatcherServicePasspord(hatcherServicePasspord);
+    // call this first to set service passport contract address
+    function init(address hatcherServicePassport) external onlyOwner {
+        _hatcherServicePassport = HatcherServicePassport(hatcherServicePassport);
     }
 
-    function mint(uint256 maxUserLimit, uint256 fee, uint256 expiredTime) public payable {
+    function mint(uint256 maxUserLimit, uint256 fee) public payable returns (Service memory) {
         require(
             _hatcherDeveloperBadge.balanceOf(msg.sender) > 0,
             "You need an Hatcher Developer Badge to mint this NFT"
@@ -57,36 +57,48 @@ contract HatcherServiceCertificate is ERC721, Ownable {
             "Exceeded maximum number of tokens per user"
         );
         _safeMint(msg.sender, _totalSupply);
-        _addService(msg.sender, _totalSupply, maxUserLimit, fee, expiredTime)
-        _totalSupply = _totalSupply.add(1);
-        
+        return _addService(msg.sender, _totalSupply, maxUserLimit, fee);
     }
 
     /** public functions */
     function addServiceRevenue(uint256 serviceId, uint256 amount) external payable {
-        require(address(_hatcherServicePasspord) == msg.sender, "only service passpord can call it.");
+        require(address(_hatcherServicePassport) == msg.sender, "only service passport can call it.");
         Service[] storage s = _servicesData[ownerOf(serviceId)];
         for(uint i = 0; i < s.length; i++)
         {
             if(s[i].serviceId == serviceId) s[i].revenue = s[i].revenue.add(amount);
         }
-        _servicesData[from] = s;
+        _servicesData[ownerOf(serviceId)] = s;
+    }
 
+    function getServiceUserCount(uint256 serviceId) public view returns (uint256) {
+        return _hatcherServicePassport.getServiceUsersCount(serviceId);
     }
-    
+
     function getOwnerServices(address owner) public view returns (Service[] memory) {
-        return _servicesData[creator];
+        Service[] memory s = _servicesData[owner];
+        for(uint i = 0; i < s.length; i++) {
+            s[i].userCount = getServiceUserCount(s[i].serviceId);
+        }
+        return s;
     }
+
+    // function getSubscribedServices(address user) public view returns(Service[] memory) {
+
+    // }
 
     function getServiceInfo(
         uint256 serviceId
     ) public view returns (Service memory) {
         require(_exists(serviceId), "Token does not exist");
         Service[] memory s = _servicesData[ownerOf(serviceId)];
+        Service memory ret;
         for(uint i = 0; i < s.length; i++)
         {
-            if(s[i].serviceId == serviceId) return s[i];
+            if(s[i].serviceId == serviceId) ret = s[i];
         }
+        ret.userCount = getServiceUserCount(serviceId);
+        return ret;
     }
 
     function transferFrom(
@@ -95,9 +107,13 @@ contract HatcherServiceCertificate is ERC721, Ownable {
         uint256 serviceId
     ) public virtual override {
         Service[] storage s = _servicesData[ownerOf(serviceId)];
+        Service memory temp;
         for(uint i = 0; i < s.length; i++)
         {
-            if(s[i].serviceId == serviceId) delete s[i];
+            if(s[i].serviceId == serviceId) {
+                temp = s[i];
+                delete s[i];
+            }
         }
         _servicesData[from] = s;
 
@@ -112,14 +128,13 @@ contract HatcherServiceCertificate is ERC721, Ownable {
         Service memory ns = Service({
             serviceId: serviceId,
             owner: to,
-            createdTime: block.timestamp(),
-            maxUserLimit: type(uint256).max,
-            fee: 0,
-            expiredTime: type(uint256).max,
+            createdTime: temp.createdTime,
+            maxUserLimit: temp.maxUserLimit,
+            userCount: 0,
+            fee: temp.fee,
             revenue: 0
         });
         _servicesData[to].push(ns);
-
     }
 
     function getServiceCount(address owner) public view returns(uint256){
@@ -130,8 +145,7 @@ contract HatcherServiceCertificate is ERC721, Ownable {
         return getServiceInfo(serviceId).revenue;
     }
 
-    function setServiceParams(uint256 serviceId, uint256 maxUserLimit, uint256 fee, uint256 expiredTime
-    ) public {
+    function setServiceParams(uint256 serviceId, uint256 maxUserLimit, uint256 fee) public {
         require(_exists(serviceId), "serviceId does not exist");
         Service[] storage s = _servicesData[ownerOf(serviceId)];
         for(uint i = 0; i < s.length; i++)
@@ -139,7 +153,6 @@ contract HatcherServiceCertificate is ERC721, Ownable {
             if(s[i].serviceId == serviceId && s[i].owner == msg.sender) {
                 s[i].maxUserLimit = maxUserLimit;
                 s[i].fee = fee;
-                s[i].expiredTime = expiredTime;
                 _servicesData[msg.sender] = s;
             }
         }
@@ -162,16 +175,22 @@ contract HatcherServiceCertificate is ERC721, Ownable {
     }
 
     /** internal functions */
-    function _addService(address _creator, uint256 _serviceId, uint256 _maxUserLimit, uint256 _fee, uint256 _expiredTime) internal {
-        Service[] storage s = _servicesData[creator];
-        s.push(Service({
+    function _addService(address _creator, uint256 _serviceId, uint256 _maxUserLimit, uint256 _fee) internal returns(Service memory) {
+        Service[] storage s = _servicesData[_creator];
+        Service memory s1 = Service({
             serviceId: _serviceId,
             owner: _creator, 
-            createdTime: block.timestamp(), 
+            createdTime: block.timestamp, 
+            userCount: 0,
             maxUserLimit: _maxUserLimit,
             fee: _fee,
-            expiredTime: _expiredTime,
-            revenue: 0}));
-        _servicesData[creator] = s;
+            revenue: 0});
+        s.push(s1);
+        _servicesData[_creator] = s;
+        return s1;
+    }
+
+    function exists(uint256 serviceId) public view returns (bool) {
+        return _exists(serviceId);
     }
 }

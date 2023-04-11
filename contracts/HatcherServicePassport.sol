@@ -4,6 +4,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { HatcherServiceCertificate } from "./HatcherServiceCertificate.sol";
 
 /**
  * @title hatcher service for user
@@ -12,11 +13,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract HatcherServicePassport is ERC721, Ownable {
     using SafeMath for uint256;
-    using SafeERC20 for IERC20; // support erc20 token as patment in future 
+    // using SafeERC20 for IERC20; // support erc20 token as payment in future 
 
     struct UserInfo {
         uint256 serviceId; // service id which is certificated in `HatcherServiceCertificate` contract
-        uint256 passpordId; // user password minted from this contact that is able to use the service
+        uint256 passportId; // user passport minted from this contact that is able to use the service
         uint256 createdTime;
         uint256 expiredTime;
     }
@@ -42,10 +43,10 @@ contract HatcherServicePassport is ERC721, Ownable {
     /**
      * @notice only supports native token as payment, erc20 is going to be supported asap
      * @dev user subscriptes a service
-     * @param serviceId 
+     * @param serviceId service id
      */
     function mint(uint256 serviceId) public payable {
-        require(_certificateContract._exists(serviceId), "ServiceId does not exist");
+        require(_certificateContract.exists(serviceId), "ServiceId does not exist");
         HatcherServiceCertificate.Service memory s = _certificateContract.getServiceInfo(serviceId);
 
         require(!checkUserSubscription(serviceId, msg.sender), "User already has an active subscription");
@@ -59,13 +60,13 @@ contract HatcherServicePassport is ERC721, Ownable {
         _safeMint(msg.sender, _totalSupply);
 
         uint256 createdTime = block.timestamp;
-        uint256 expiredTime = block.timestamp + s.expiredTime;
+        uint256 expiredTime = block.timestamp + 30 * 3600 * 24;
 
-        _updateRevenue(serviceId, s.fee); // update revenue for senvice
+        _updateRevenue(serviceId, s.fee); // update revenue for service
 
         _serviceUsers[serviceId].push(UserInfo({
             serviceId: serviceId,
-            passpordId: _totalSupply,
+            passportId: _totalSupply,
             createdTime: createdTime,
             expiredTime: expiredTime
         }));
@@ -77,11 +78,11 @@ contract HatcherServicePassport is ERC721, Ownable {
 
     /**
      * @dev renew the service if the service has been expired
-     * @param serviceId 
+     * @param serviceId service id
      * @param user who wants to renew the service
      */
     function renew(uint256 serviceId, address user) public payable {
-        require(_certificateContract._exists(serviceId), "ServiceId does not exist");
+        require(_certificateContract.exists(serviceId), "ServiceId does not exist");
         HatcherServiceCertificate.Service memory s = _certificateContract.getServiceInfo(serviceId);
         require(checkUserSubscription(serviceId, msg.sender), "User does not has an active subscription, mint frist!");
         require(!checkValidSubscription(serviceId, msg.sender), "User has an active subscription, no need to renew");
@@ -91,12 +92,10 @@ contract HatcherServicePassport is ERC721, Ownable {
 
         UserInfo[] storage users = _serviceUsers[serviceId];
 
-        uint256 createdTime = block.timestamp;
-        uint256 expiredTime = block.timestamp + s.expiredTime;
+        uint256 expiredTime = block.timestamp + 30 * 3600 * 24;
         for(uint i = 0; i < users.length; i++)
         {
-            if(ownerOf(users[i].passpordId) == user) {
-                users[i].createdTime = createdTime;
+            if(ownerOf(users[i].passportId) == user) {
                 users[i].expiredTime = expiredTime;
                 _serviceUsers[serviceId] = users;
             }
@@ -107,48 +106,49 @@ contract HatcherServicePassport is ERC721, Ownable {
 
     /**
      * @dev cancel subscription
-     * @param serviceId
+     * @param serviceId service id
      */
-    function cancel(uint256 serviceId, address user) external {
-        require(_certificateContract._exists(serviceId), "Token id does not exist");
+    // function cancel(uint256 serviceId, address user) external {
+    //     require(_certificateContract.exists(serviceId), "Token id does not exist");
 
-        require(checkUserSubscription(serviceId, msg.sender), "User does not has an active subscription");
-        require(checkValidSubscription(serviceId, msg.sender), "User has an disactive subscription, fail to cancel subscription");
+    //     require(checkUserSubscription(serviceId, msg.sender), "User does not has an active subscription");
+    //     require(checkValidSubscription(serviceId, msg.sender), "User has an inactive subscription, fail to cancel subscription");
 
 
-        UserInfo[] storage users = _serviceUsers[serviceId];
-        for(uint i = 0; i < users.length; i++)
-        {
-            UserInfo storage u = users[i];
-            if(ownerOf(u.passpordId) == user) {
-                delete users[i]
-                _serviceUsers[serviceId] = users;
-                break;
-            }
-        }
+    //     UserInfo[] storage users = _serviceUsers[serviceId];
+    //     for(uint i = 0; i < users.length; i++)
+    //     {
+    //         UserInfo storage u = users[i];
+    //         if(ownerOf(u.passpordId) == user) {
+    //             delete users[i]
+    //             _serviceUsers[serviceId] = users;
+    //             break;
+    //         }
+    //     }
 
-        // delete service from user's subscriptions
-        uint256[] storage services = _userServices[msg.sender];
-        for(uint i = 0; i < services.length; i++)
-        {
-            if(services[i] == serviceId) {
-                delete services[i];
-                _userServices[msg.sender] = services;
-                break;
-            }
-        }
+    //     // delete service from user's subscriptions
+    //     uint256[] storage services = _userServices[msg.sender];
+    //     for(uint i = 0; i < services.length; i++)
+    //     {
+    //         if(services[i] == serviceId) {
+    //             delete services[i];
+    //             _userServices[msg.sender] = services;
+    //             break;
+    //         }
+    //     }
 
-        emit CancelSubscription(msg.sender, serviceId);
-    } 
+    //     emit CancelSubscription(msg.sender, serviceId);
+    // } 
 
-    function _updateRevenue(uint256 serviceId, uint256 amount) internal payable {
-        require(msg.value > amount, "Insufficient payment");
-        _certificateContract.call{value: msg.value}(
-            "addServiceRevenue(uint256,uint256)",
-            user.passpordId,
-            amount
+    function _updateRevenue(uint256 serviceId, uint256 amount) internal {
+        require(msg.value >= amount, "Insufficient payment");
+        address(_certificateContract).call{value: msg.value}(
+            abi.encodeWithSignature(
+                "addServiceRevenue(uint256,uint256)",
+                serviceId,
+                amount
+            )
         );
-
     }
 
     /** ********** public call **************** */
@@ -167,14 +167,14 @@ contract HatcherServicePassport is ERC721, Ownable {
     /**
      * @dev check if user's subscription is still valid.
      */
-    function checkValidSubscription(uint256 serviceId address user) public view returns (bool) {
+    function checkValidSubscription(uint256 serviceId, address user) public view returns (bool) {
         uint256 now_ = block.timestamp;
 
         UserInfo[] memory users = _serviceUsers[serviceId];
 
         for(uint i = 0; i < users.length; i++)
         {
-            if(ownerOf(users[i].passpordId) == user) {
+            if(ownerOf(users[i].passportId) == user) {
                 return (users[i].createdTime <= now_) && (now_ <= users[i].expiredTime);
             }
         }
@@ -185,7 +185,7 @@ contract HatcherServicePassport is ERC721, Ownable {
         UserInfo[] memory users = _serviceUsers[serviceId];
         for(uint i = 0; i < users.length; i++)
         {
-            if(ownerOf(users[i].passpordId == user)) return users[i];
+            if(ownerOf(users[i].passportId) == user) return users[i];
         }
     }
 

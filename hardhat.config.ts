@@ -4,14 +4,12 @@ import "@nomicfoundation/hardhat-toolbox";
 require("dotenv").config();
 
 require('hardhat-contract-sizer');
-require("@nomiclabs/hardhat-waffle");
 require(`@nomiclabs/hardhat-etherscan`);
 require("solidity-coverage");
 require('hardhat-gas-reporter');
 require('hardhat-deploy');
 require('hardhat-deploy-ethers');
 require('@openzeppelin/hardhat-upgrades');
-require('./tasks');
 
 const testPrivKey = process.env.TEST_PRIV_KEY;
 const scanApiKey = process.env.ETHERSCAN_API_KEY
@@ -50,15 +48,6 @@ module.exports = {
     alphaSort: false,
     runOnCompile: true,
     disambiguatePaths: false,
-  },
-
-  namedAccounts: {
-    deployer: {
-      default: 0,    // wallet address 0, of the mnemonic in .env
-    },
-    proxyOwner: {
-      default: 1,
-    },
   },
 
   networks: {

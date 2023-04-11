@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract HatcherDeveloperBadge is ERC721, Ownable {
     using SafeMath for uint256;
 
-    string memory _base_uri = "";
+    string private _base_uri = "";
     //total supply
     uint256 private _totalSupply;
 
@@ -54,13 +54,4 @@ contract HatcherDeveloperBadge is ERC721, Ownable {
     ) public virtual override {
         // do nothing
     }
-
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public virtual override {
-        // do nothing
-    }
-
 }
