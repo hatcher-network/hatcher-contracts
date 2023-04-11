@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { HatcherServiceCertificate } from "./HatcherServiceCertificate.sol";
+import {HatcherServiceCertificate} from "./HatcherServiceCertificate.sol";
 
 /**
  * @title hatcher service for user
@@ -13,7 +14,7 @@ import { HatcherServiceCertificate } from "./HatcherServiceCertificate.sol";
  */
 contract HatcherServicePassport is ERC721, Ownable {
     using SafeMath for uint256;
-    // using SafeERC20 for IERC20; // support erc20 token as payment in future 
+    // using SafeERC20 for IERC20; // support erc20 token as payment in future
 
     struct UserInfo {
         uint256 serviceId; // service id which is certificated in `HatcherServiceCertificate` contract
@@ -27,10 +28,14 @@ contract HatcherServicePassport is ERC721, Ownable {
     mapping(uint256 => UserInfo[]) private _serviceUsers; // service => users[]
     mapping(address => uint256[]) private _userServices; // user => services
 
-    uint256 private _totalSupply; // 
+    uint256 private _totalSupply; //
 
     // EVENTS
-    event NewSubscription(address indexed user, uint256 indexed serviceId, uint256 indexed passpordId);
+    event NewSubscription(
+        address indexed user,
+        uint256 indexed serviceId,
+        uint256 indexed passpordId
+    );
     event RenewSubscription(address indexed user, uint256 indexed serviceId);
     event CancelSubscription(address indexed user, uint256 indexed serviceId);
 
@@ -46,10 +51,17 @@ contract HatcherServicePassport is ERC721, Ownable {
      * @param serviceId service id
      */
     function mint(uint256 serviceId) public payable {
-        require(_certificateContract.exists(serviceId), "ServiceId does not exist");
-        HatcherServiceCertificate.Service memory s = _certificateContract.getServiceInfo(serviceId);
+        require(
+            _certificateContract.exists(serviceId),
+            "ServiceId does not exist"
+        );
+        HatcherServiceCertificate.Service memory s = _certificateContract
+            .getServiceInfo(serviceId);
 
-        require(!checkUserSubscription(serviceId, msg.sender), "User already has an active subscription");
+        require(
+            !checkUserSubscription(serviceId, msg.sender),
+            "User already has an active subscription"
+        );
 
         require(
             _serviceUsers[serviceId].length < s.maxUserLimit,
@@ -64,12 +76,14 @@ contract HatcherServicePassport is ERC721, Ownable {
 
         _updateRevenue(serviceId, s.fee); // update revenue for service
 
-        _serviceUsers[serviceId].push(UserInfo({
-            serviceId: serviceId,
-            passportId: _totalSupply,
-            createdTime: createdTime,
-            expiredTime: expiredTime
-        }));
+        _serviceUsers[serviceId].push(
+            UserInfo({
+                serviceId: serviceId,
+                passportId: _totalSupply,
+                createdTime: createdTime,
+                expiredTime: expiredTime
+            })
+        );
         _userServices[msg.sender].push(serviceId);
         _totalSupply++;
 
@@ -82,20 +96,29 @@ contract HatcherServicePassport is ERC721, Ownable {
      * @param user who wants to renew the service
      */
     function renew(uint256 serviceId, address user) public payable {
-        require(_certificateContract.exists(serviceId), "ServiceId does not exist");
-        HatcherServiceCertificate.Service memory s = _certificateContract.getServiceInfo(serviceId);
-        require(checkUserSubscription(serviceId, msg.sender), "User does not has an active subscription, mint frist!");
-        require(!checkValidSubscription(serviceId, msg.sender), "User has an active subscription, no need to renew");
-    
+        require(
+            _certificateContract.exists(serviceId),
+            "ServiceId does not exist"
+        );
+        HatcherServiceCertificate.Service memory s = _certificateContract
+            .getServiceInfo(serviceId);
+        require(
+            checkUserSubscription(serviceId, msg.sender),
+            "User does not has an active subscription, mint frist!"
+        );
+        require(
+            !checkValidSubscription(serviceId, msg.sender),
+            "User has an active subscription, no need to renew"
+        );
+
         require(msg.value >= s.fee, "Insufficient payment");
         _updateRevenue(serviceId, s.fee);
 
         UserInfo[] storage users = _serviceUsers[serviceId];
 
         uint256 expiredTime = block.timestamp + 30 * 3600 * 24;
-        for(uint i = 0; i < users.length; i++)
-        {
-            if(ownerOf(users[i].passportId) == user) {
+        for (uint i = 0; i < users.length; i++) {
+            if (ownerOf(users[i].passportId) == user) {
                 users[i].expiredTime = expiredTime;
                 _serviceUsers[serviceId] = users;
             }
@@ -113,7 +136,6 @@ contract HatcherServicePassport is ERC721, Ownable {
 
     //     require(checkUserSubscription(serviceId, msg.sender), "User does not has an active subscription");
     //     require(checkValidSubscription(serviceId, msg.sender), "User has an inactive subscription, fail to cancel subscription");
-
 
     //     UserInfo[] storage users = _serviceUsers[serviceId];
     //     for(uint i = 0; i < users.length; i++)
@@ -138,28 +160,31 @@ contract HatcherServicePassport is ERC721, Ownable {
     //     }
 
     //     emit CancelSubscription(msg.sender, serviceId);
-    // } 
+    // }
 
     function _updateRevenue(uint256 serviceId, uint256 amount) internal {
         require(msg.value >= amount, "Insufficient payment");
-        address(_certificateContract).call{value: msg.value}(
+        (bool success, ) = address(_certificateContract).call{value: msg.value}(
             abi.encodeWithSignature(
                 "addServiceRevenue(uint256,uint256)",
                 serviceId,
                 amount
             )
         );
+        require(success, "update revenue failed");
     }
 
     /** ********** public call **************** */
     /**
      * @dev check if user already subscribed in service
      */
-    function checkUserSubscription(uint256 serviceId, address user) public view returns (bool) {
+    function checkUserSubscription(
+        uint256 serviceId,
+        address user
+    ) public view returns (bool) {
         uint256[] memory s = _userServices[user];
-        for(uint i = 0; i < s.length; i++)
-        {
-            if(s[i] == serviceId) return true;
+        for (uint i = 0; i < s.length; i++) {
+            if (s[i] == serviceId) return true;
         }
         return false;
     }
@@ -167,38 +192,47 @@ contract HatcherServicePassport is ERC721, Ownable {
     /**
      * @dev check if user's subscription is still valid.
      */
-    function checkValidSubscription(uint256 serviceId, address user) public view returns (bool) {
+    function checkValidSubscription(
+        uint256 serviceId,
+        address user
+    ) public view returns (bool) {
         uint256 now_ = block.timestamp;
 
         UserInfo[] memory users = _serviceUsers[serviceId];
 
-        for(uint i = 0; i < users.length; i++)
-        {
-            if(ownerOf(users[i].passportId) == user) {
-                return (users[i].createdTime <= now_) && (now_ <= users[i].expiredTime);
+        for (uint i = 0; i < users.length; i++) {
+            if (ownerOf(users[i].passportId) == user) {
+                return
+                    (users[i].createdTime <= now_) &&
+                    (now_ <= users[i].expiredTime);
             }
         }
         return false;
     }
 
-    function getUserInfo(uint256 serviceId, address user) public view returns (UserInfo memory) {
+    function getUserInfo(
+        uint256 serviceId,
+        address user
+    ) public view returns (UserInfo memory userInfo) {
         UserInfo[] memory users = _serviceUsers[serviceId];
-        for(uint i = 0; i < users.length; i++)
-        {
-            if(ownerOf(users[i].passportId) == user) return users[i];
+        for (uint i = 0; i < users.length; i++) {
+            if (ownerOf(users[i].passportId) == user) userInfo = users[i];
         }
     }
 
-    function getServiceUsersCount(uint256 serviceId) public view returns (uint256) {
+    function getServiceUsersCount(
+        uint256 serviceId
+    ) public view returns (uint256) {
         return _serviceUsers[serviceId].length;
     }
 
-    function getUserServices(address user) public view returns (uint256[] memory) {
+    function getUserServices(
+        address user
+    ) public view returns (uint256[] memory) {
         return _userServices[user];
     }
 
     function getUserServicesCount(address user) public view returns (uint256) {
         return _userServices[user].length;
     }
-
 }

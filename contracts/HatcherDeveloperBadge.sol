@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -5,10 +6,15 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+/**
+ * @title hatcher badge for service provider
+ * @author Rocklabs
+ * @notice who with hatcher badge could create service
+ */
 contract HatcherDeveloperBadge is ERC721, Ownable {
     using SafeMath for uint256;
 
-    string private _base_uri = "";
+    string private _URI = "";
     //total supply
     uint256 private _totalSupply;
 
@@ -31,11 +37,11 @@ contract HatcherDeveloperBadge is ERC721, Ownable {
     /** internal function */
 
     function _baseURI() internal view override returns (string memory) {
-        return _base_uri;
+        return _URI;
     }
 
     function _setBaseURI(string memory baseURI) internal {
-        _base_uri = baseURI;
+        _URI = baseURI;
     }
 
     /** prohibit transfering badge to avoid sharing just one badge to create ai service*/
