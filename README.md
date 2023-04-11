@@ -34,3 +34,7 @@ Using the Polygon network ```(testnet: mumbai)``` as a is a cost cut decision.
     npx hardhat --network mumbai deploy --tags HatcherServiceCertificate
     npx hardhat --network mumbai deploy --tags HatcherServicePassport
     ```
+2. Init cerfication contract
+    ```angular2html
+    npx hardhat --network mumbai serviceInit
+    ```
