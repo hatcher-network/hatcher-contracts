@@ -34,9 +34,11 @@ contract HatcherServicePassport is ERC721, Ownable {
     event NewSubscription(
         address indexed user,
         uint256 indexed serviceId,
-        uint256 indexed passpordId
+        uint256 indexed passpordId,
+        uint256 createdTime,
+        uint256 expiredTime
     );
-    event RenewSubscription(address indexed user, uint256 indexed serviceId);
+    event RenewSubscription(address indexed user, uint256 indexed serviceId, uint256 expiredTime);
     event CancelSubscription(address indexed user, uint256 indexed serviceId);
 
     constructor(
@@ -87,7 +89,7 @@ contract HatcherServicePassport is ERC721, Ownable {
         _userServices[msg.sender].push(serviceId);
         _totalSupply++;
 
-        emit NewSubscription(msg.sender, serviceId, _totalSupply - 1);
+        emit NewSubscription(msg.sender, serviceId, _totalSupply - 1, createdTime, expiredTime);
     }
 
     /**
@@ -124,7 +126,7 @@ contract HatcherServicePassport is ERC721, Ownable {
             }
         }
 
-        emit RenewSubscription(msg.sender, serviceId);
+        emit RenewSubscription(msg.sender, serviceId, expiredTime);
     }
 
     /**

@@ -37,6 +37,13 @@ contract HatcherServiceCertificate is ERC721, Ownable {
     HatcherServicePassport private _hatcherServicePassport;
     uint256 private _totalSupply;
 
+    // EVENTS
+    event Mint(uint256 indexed serviceId, address indexed owner, uint256 maxUserLimit, uint256 fee);
+    event TransferFrom(uint256 indexed serviceId, address indexed from, address indexed to);
+    event SetServiceProps(uint256 indexed serviceId, address indexed owner, uint256 maxUserLimit, uint256 fee);
+    event Withdraw(address indexed to, uint256 amount);
+    event SetRevenueShare(uint256 indexed revenueShareRate);
+
     constructor(
         address hatcherDeveloperBadge,
         uint256 revenueShareRate
@@ -82,25 +89,11 @@ contract HatcherServiceCertificate is ERC721, Ownable {
         _totalSupply = _totalSupply.add(1);
         _safeMint(msg.sender, serviceId);
         service = _addService(msg.sender, serviceId, maxUserLimit, fee);
+
+        emit Mint(serviceId, _msgSender(), maxUserLimit, fee);
     }
 
     /** public functions */
-    function addServiceRevenue(
-        uint256 serviceId,
-        uint256 amount
-    ) external payable {
-        require(
-            address(_hatcherServicePassport) == msg.sender,
-            "only service passport can call it."
-        );
-        Service[] storage s = _servicesData[ownerOf(serviceId)];
-        for (uint i = 0; i < s.length; i++) {
-            if (s[i].serviceId == serviceId)
-                s[i].revenue = s[i].revenue.add(amount);
-        }
-        _servicesData[ownerOf(serviceId)] = s;
-    }
-
     function getServiceUserCount(
         uint256 serviceId
     ) public view returns (uint256) {
@@ -132,6 +125,17 @@ contract HatcherServiceCertificate is ERC721, Ownable {
         ret.userCount = getServiceUserCount(serviceId);
     }
 
+    function getServiceCount(address owner) public view returns (uint256) {
+        return _servicesData[owner].length;
+    }
+
+    function getServiceRevenue(
+        uint256 serviceId
+    ) public view returns (uint256) {
+        return getServiceInfo(serviceId).revenue;
+    }
+
+    /** ************* badge owner call **********/
     function transferFrom(
         address from,
         address to,
@@ -165,19 +169,11 @@ contract HatcherServiceCertificate is ERC721, Ownable {
             revenue: 0
         });
         _servicesData[to].push(ns);
+
+        emit TransferFrom(serviceId, from, to);
     }
 
-    function getServiceCount(address owner) public view returns (uint256) {
-        return _servicesData[owner].length;
-    }
-
-    function getServiceRevenue(
-        uint256 serviceId
-    ) public view returns (uint256) {
-        return getServiceInfo(serviceId).revenue;
-    }
-
-    function setServiceParams(
+    function setServiceProps(
         uint256 serviceId,
         uint256 maxUserLimit,
         uint256 fee
@@ -191,20 +187,43 @@ contract HatcherServiceCertificate is ERC721, Ownable {
                 _servicesData[msg.sender] = s;
             }
         }
+        emit SetServiceProps(serviceId, msg.sender, maxUserLimit, fee);
+    }
+
+    /** *** only passport contract call it ***/
+    function addServiceRevenue(
+        uint256 serviceId,
+        uint256 amount
+    ) external payable {
+        require(
+            address(_hatcherServicePassport) == msg.sender,
+            "only service passport can call it."
+        );
+        Service[] storage s = _servicesData[ownerOf(serviceId)];
+        for (uint i = 0; i < s.length; i++) {
+            if (s[i].serviceId == serviceId)
+                s[i].revenue = s[i].revenue.add(amount);
+        }
+        _servicesData[ownerOf(serviceId)] = s;
     }
 
     /************* owner call *************** */
     function setRevenueShare(uint256 revenueShareRate) public onlyOwner {
         require(revenueShareRate <= 100, "Invalid revenue share rate");
         _revenueShareRate = revenueShareRate;
+
+        emit SetRevenueShare(revenueShareRate);
     }
 
     // withdraw native token function.
     function withdraw(address payable _to, uint256 _amount) external onlyOwner {
         require(_to != address(0x0), " _to cannot be zero address");
+        require(_amount < (MINT_PRICE * _totalSupply), " _amount cannot be larger than total mint amount");
 
         (bool success, ) = _to.call{value: _amount}("");
         require(success, "withdraw failed");
+
+        emit Withdraw(_to, _amount);
     }
 
     /** internal functions */

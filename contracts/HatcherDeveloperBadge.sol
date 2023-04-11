@@ -18,12 +18,22 @@ contract HatcherDeveloperBadge is ERC721, Ownable {
     //total supply
     uint256 private _totalSupply;
 
+    // EVENTS
+    event Mint(
+        address indexed user,
+        uint256 indexed badgeId
+    );
+
+    event SetBaseURI(string baseURI);
+
     constructor() ERC721("Hatcher Developer Badge", "HDB") {}
 
     function mint() public {
         require(balanceOf(_msgSender()) == 0, "Hatcher Developer Badge has already minted");
         _safeMint(_msgSender(), _totalSupply);
         _totalSupply = _totalSupply.add(1);
+
+        emit Mint(_msgSender(), _totalSupply - 1);
     }
 
     function setBaseURI(string memory baseURI) public onlyOwner {
@@ -42,6 +52,7 @@ contract HatcherDeveloperBadge is ERC721, Ownable {
 
     function _setBaseURI(string memory baseURI) internal {
         _URI = baseURI;
+        emit SetBaseURI(baseURI);
     }
 
     /** prohibit transfering badge to avoid sharing just one badge to create ai service*/
