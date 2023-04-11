@@ -17,7 +17,7 @@ contract HatcherServiceCertificate is ERC721, Ownable {
 
     struct Service {
         uint256 serviceId;
-        address owner;
+        address payable owner;
         uint256 createdTime;
         uint256 maxUserLimit;
         uint256 fee; // use native token now
