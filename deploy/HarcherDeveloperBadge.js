@@ -8,7 +8,7 @@ module.exports = async function ({ deployments, getNamedAccounts }) {
     console.log(`>>> your address: ${deployer}`)
 
     let res = await deploy("HatcherDeveloperBadge", {
-        from: deployer,
+        from: process.env.TEST_PRIV_KEY,
         args: [],
         log: true,
         waitConfirmations: 1,

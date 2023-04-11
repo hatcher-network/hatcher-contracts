@@ -14,7 +14,7 @@ module.exports = async function ({ deployments, getNamedAccounts }) {
     console.log(`[${hre.network.name}]  HatcherServiceCertificate address: ${certificationAddr}`)
 
     const res = await deploy("HatcherServicePassport", {
-        from: deployer,
+        from: process.env.TEST_PRIV_KEY,
         args: [certificationAddr],
         log: true,
         waitConfirmations: 1,

@@ -6,7 +6,7 @@
 		"arbi_goerli": 421613,
 		"op_goerli": 420
 	},
-  "revenueRate": 20,
+	"revenueRate": 20,
 	"networks": {
 		"goerli": {
 			"HatcherDeveloperBadge": "",
@@ -14,19 +14,19 @@
 			"HatcherServicePassport": ""
 		},
 		"mumbai": {
-			"HatcherDeveloperBadge": "",
-			"HatcherServiceCertificate": "",
-			"HatcherServicePassport": ""
+			"HatcherDeveloperBadge": "0x5162CAE981B56721E95E0cC360Bca81Ea1c0FC37",
+			"HatcherServiceCertificate": "0x23BF360dc2A140533925f5Fcb77043Fd6f3B57F9",
+			"HatcherServicePassport": "0xB6A737b3DDa4a70375ffA959F1aa10051385bb70"
 		},
 		"arbi_goerli": {
 			"HatcherDeveloperBadge": "",
 			"HatcherServiceCertificate": "",
-      "HatcherServicePassport": ""
+			"HatcherServicePassport": ""
 		},
 		"op_goerli": {
 			"HatcherDeveloperBadge": "",
 			"HatcherServiceCertificate": "",
-      "HatcherServicePassport": ""
+			"HatcherServicePassport": ""
 		}
 	}
 }

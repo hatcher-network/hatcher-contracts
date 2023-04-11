@@ -1,7 +1,8 @@
 require("dotenv").config();
 
 require('hardhat-contract-sizer');
-require("@nomiclabs/hardhat-waffle");
+//require("@nomiclabs/hardhat-waffle");
+require("@nomicfoundation/hardhat-toolbox");
 require(`@nomiclabs/hardhat-etherscan`);
 require("solidity-coverage");
 require('hardhat-gas-reporter');
@@ -42,6 +43,12 @@ module.exports = {
     alphaSort: false,
     runOnCompile: true,
     disambiguatePaths: false,
+  },
+
+  namedAccounts: {
+    deployer: {
+        "goerli": '0x25816551E0E2e6FC256A0E7BCfFDFD1CA3CD390D', //it can also specify a specific netwotk name (specified in hardhat.config.js)
+    }
   },
 
   networks: {
