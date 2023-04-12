@@ -9,7 +9,7 @@ require('hardhat-gas-reporter');
 require('hardhat-deploy');
 require('hardhat-deploy-ethers');
 require('@openzeppelin/hardhat-upgrades');
-// require('./tasks');
+require('./tasks');
 
 const testPrivKey = process.env.TEST_PRIV_KEY;
 
@@ -47,7 +47,8 @@ module.exports = {
 
   namedAccounts: {
     deployer: {
-        "goerli": '0x25816551E0E2e6FC256A0E7BCfFDFD1CA3CD390D', //it can also specify a specific netwotk name (specified in hardhat.config.js)
+        // "goerli": '0x25816551E0E2e6FC256A0E7BCfFDFD1CA3CD390D', //it can also specify a specific netwotk name (specified in hardhat.config.js)
+        default: 0
     }
   },
 

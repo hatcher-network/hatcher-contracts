@@ -14,9 +14,9 @@
 			"HatcherServicePassport": ""
 		},
 		"mumbai": {
-			"HatcherDeveloperBadge": "0x5162CAE981B56721E95E0cC360Bca81Ea1c0FC37",
-			"HatcherServiceCertificate": "0x23BF360dc2A140533925f5Fcb77043Fd6f3B57F9",
-			"HatcherServicePassport": "0xB6A737b3DDa4a70375ffA959F1aa10051385bb70"
+			"HatcherDeveloperBadge": "0x11A8fBF2eeB3A24fCe76482598C6895709Ca4f4E",
+			"HatcherServiceCertificate": "0x932FfE58f71C6d82718aBa243BbFf9067c30c09D",
+			"HatcherServicePassport": "0x2Fb436960Ae08eBD1BE09375CAC13EE5B7aEaa1b"
 		},
 		"arbi_goerli": {
 			"HatcherDeveloperBadge": "",
