@@ -10,15 +10,23 @@ import "../greenfield/interface/IERC721NonTransferable.sol";
 import "../greenfield/interface/IERC1155NonTransferable.sol";
 
 /**
- * @dev An example of a simple ebook shop
+ * @dev Hatcher data market
+ * 
+ * Resources like bucket,object,group are mirrored to BSC, represented in ERC721 tokens
  *
- * A `series` is a `bucket` resource and an `ebook` is an `object` resource
- * An ebook must be put into a series
- * A series can contain multiple ebooks
- * Anyone must create a series before creating an ebook
+ * Workflow:
+ *  On Greenfield: 
+ *      1. user create a bucket
+ *      2. user upload data (create a object)
+ *      3. user create a group, and grant the group members access right to the data object
+ *      4. trigger a mirror action, mirror bucket,object,group resources to BSC
+ *  On BSC:
+ *      1. user publish a data item (user select object from his bucket on frontend)
+ *      2. buyer pay to buy the item, trigger a crosschain call to greenfield, add the buyer to the group
+ *      3. buyer can download the data from greenfield after he is added to the group
  *
- * And an ebook should be bonding to a group
- * Only members of the group can get the ebook
+ * And an DataItem should be bonding to a group (usage right for this data item)
+ * Only members of the group can download the DataItem from greenfield
  *
  */
 contract DataMarket is BucketApp, ObjectApp, GroupApp {
@@ -29,7 +37,7 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
     string public constant ERROR_RESOURCE_EXISTED = "5";
     string public constant ERROR_INVALID_PRICE = "6";
     string public constant ERROR_GROUP_NOT_EXISTED = "7";
-    string public constant ERROR_EBOOK_NOT_ONSHELF = "8";
+    string public constant ERROR_DATA_NOT_ONSHELF = "8";
     string public constant ERROR_NOT_ENOUGH_VALUE = "9";
     string public constant ERROR_INVALID_TAX = "10";
 
@@ -38,8 +46,26 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
     address public owner;
     mapping(address => bool) public operators;
 
-    // ERC1155 token for onshelf ebook
-    address public ebookToken;
+    struct DataItem {
+        string title;
+        string description;
+        address owner;
+        string tags;
+        string data_type; // e.g. pdf, text
+        uint price; // in wei
+        string gnfd_path; // gnfd://bucket_name/obj_name
+        uint bucket_id;
+        uint obj_id; // unique
+        uint group_id; // the group representing usage right for this data item on greenfield
+        string group_name; // the group name
+        uint status; // item status, 0: delisted, 1: selling
+        uint sale_count; // count of sales
+        uint income; // total income
+        uint timestamp; // publish timestamp
+    }
+
+    // ERC1155 token for onshelf data items
+    address public dataToken;
 
     // system contract
     address public bucketToken;
@@ -47,33 +73,15 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
     address public groupToken;
     address public memberToken;
 
-    // tokenId => series name
-    mapping(uint256 => string) public seriesName;
-    // series name => tokenId
-    mapping(string => uint256) public seriesId;
+    // data object id => DataItem
+    mapping(uint256 => DataItem) dataItem;
 
-    // tokenId => Ebook name
-    mapping(uint256 => string) public ebookName;
-    // Ebook name => tokenId
-    mapping(string => uint256) public ebookId;
-    // Ebook id => group id
-    mapping(uint256 => uint256) public ebookGroup;
-
-    // tokenId => group name
-    mapping(uint256 => string) public groupName;
-    // group name => tokenId
-    mapping(string => uint256) public groupId;
-    // group id => Ebook id
-    mapping(uint256 => uint256) public groupEbook;
-
-    // ebookId => price
-    mapping(uint256 => uint256) public ebookPrice;
-
+    // dev fee = tax/100
     uint256 public tax;
     mapping(address => uint256) public income;
 
     // PlaceHolder reserve for future use
-    uint256[25] public EbookShopSlots;
+    uint256[25] public _Gap;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -97,14 +105,14 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
         address _refundAddress,
         uint8 _failureHandleStrategy,
         address _owner,
-        address _ebookToken,
+        address _dataToken,
         uint256 _tax
     ) public initializer {
-        require(_owner != address(0), string.concat("EbookShop: ", ERROR_INVALID_CALLER));
+        require(_owner != address(0), string.concat("DataMarket: ", ERROR_INVALID_CALLER));
         _transferOwnership(_owner);
 
         tax = _tax;
-        ebookToken = _ebookToken;
+        dataToken = _dataToken;
         bucketToken = IBucketHub(_bucketHub).ERC721Token();
         objectToken = IObjectHub(_objectHub).ERC721Token();
         groupToken = IGroupHub(_groupHub).ERC721Token();
@@ -117,6 +125,7 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
     }
 
     /*----------------- external functions -----------------*/
+    // unused
     function greenfieldCall(
         uint32 status,
         uint8 resoureceType,
@@ -124,7 +133,7 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
         uint256 resourceId,
         bytes calldata callbackData
     ) external override(BucketApp, ObjectApp, GroupApp) {
-        require(msg.sender == crossChain, string.concat("EbookShop: ", ERROR_INVALID_CALLER));
+        require(msg.sender == crossChain, string.concat("DataMarket: ", ERROR_INVALID_CALLER));
 
         if (resoureceType == RESOURCE_BUCKET) {
             _bucketGreenfieldCall(status, operationType, resourceId, callbackData);
@@ -133,44 +142,8 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
         } else if (resoureceType == RESOURCE_GROUP) {
             _groupGreenfieldCall(status, operationType, resourceId, callbackData);
         } else {
-            revert(string.concat("EbookShop: ", ERROR_INVALID_RESOURCE));
+            revert(string.concat("DataMarket: ", ERROR_INVALID_RESOURCE));
         }
-    }
-
-    /**
-     * @dev Create a new series.
-     *
-     * Assuming the sp provider's info will be provided by the front-end.
-     */
-    function createSeries(
-        string calldata name,
-        BucketStorage.BucketVisibilityType visibility,
-        uint64 chargedReadQuota,
-        address spAddress,
-        uint256 expireHeight,
-        bytes calldata sig
-    ) external payable {
-        require(bytes(name).length > 0, string.concat("EbookShop: ", ERROR_INVALID_NAME));
-        require(seriesId[name] == 0, string.concat("EbookShop: ", ERROR_RESOURCE_EXISTED));
-
-        bytes memory _callbackData = bytes(name); // use name as callback data
-        _createBucket(msg.sender, name, visibility, chargedReadQuota, spAddress, expireHeight, sig, _callbackData);
-    }
-
-    /**
-     * @dev Provide an ebook's ID to create a group for it.
-     */
-    function createGroup(uint256 _ebookId) public payable {
-        require(
-            IERC721NonTransferable(objectToken).ownerOf(_ebookId) == msg.sender,
-            string.concat("EbookShop: ", ERROR_INVALID_CALLER)
-        );
-
-        string memory name = string.concat("Group for ", ebookName[_ebookId]);
-        require(groupId[name] == 0, string.concat("EbookShop: ", ERROR_RESOURCE_EXISTED));
-
-        bytes memory _callbackData = bytes(name); // use name as callback data
-        _createGroup(msg.sender, name, _callbackData);
     }
 
     /**
@@ -179,120 +152,123 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
      * An ERC1155 token will be minted to the owner.
      * Other users can buy the ebook by calling `buyEbook` function with given price.
      */
-    function publishEbook(uint256 _ebookId, uint256 price) external {
+    function publishDataItem(
+        string memory title,
+        string memory description,
+        string memory tags,
+        string memory data_type,
+        uint price,
+        string memory gnfd_path,
+        uint bucket_id,
+        uint obj_id,
+        uint group_id,
+        string memory group_name
+    ) external {
+        DataItem memory _item = DataItem({
+            title: title,
+            description: description,
+            owner: msg.sender,
+            tags: tags,
+            data_type: data_type,
+            price: price,
+            gnfd_path: gnfd_path,
+            bucket_id: bucket_id,
+            obj_id: obj_id,
+            group_id: group_id,
+            group_name: group_name,
+            status: 1,
+            sale_count: 0,
+            income: 0,
+            timestamp: block.timestamp
+        });
+        // ensure the seller is the owner of selected data
         require(
-            IERC721NonTransferable(objectToken).ownerOf(_ebookId) == msg.sender,
-            string.concat("EbookShop: ", ERROR_INVALID_CALLER)
+            IERC721NonTransferable(bucketToken).ownerOf(_item.bucket_id) == msg.sender,
+            string.concat("DataMarket: ", ERROR_INVALID_CALLER)
         );
-        require(ebookGroup[_ebookId] != 0, string.concat("EbookShop: ", ERROR_GROUP_NOT_EXISTED));
-        require(price > 0, string.concat("EbookShop: ", ERROR_INVALID_PRICE));
+        require(
+            IERC721NonTransferable(objectToken).ownerOf(_item.obj_id) == msg.sender,
+            string.concat("DataMarket: ", ERROR_INVALID_CALLER)
+        );
+        require(
+            IERC721NonTransferable(groupToken).ownerOf(_item.group_id) == msg.sender,
+            string.concat("DataMarket: ", ERROR_INVALID_CALLER)
+        );
+        // not published before
+        require(dataItem[_item.obj_id].timestamp == 0, string.concat("DataMarket: ", ERROR_RESOURCE_EXISTED));
+        require(price >= 0, string.concat("DataMarket: ", ERROR_INVALID_PRICE));
 
-        ebookPrice[_ebookId] = price;
-        IERC1155(ebookToken).mint(msg.sender, _ebookId, 1, "");
+        dataItem[_item.obj_id] = _item;
+        IERC1155(dataToken).mint(msg.sender, _item.obj_id, 1, "");
     }
 
     /**
-     * @dev Provide an ebook's ID to buy it.
+     * @dev Provide an data item's ID to buy it.
      *
-     * Buyer will be added to the group of the ebook.
+     * Buyer will be added to the group of the data item.
      * An ERC1155 token will be minted to the buyer.
      */
-    function buyEbook(uint256 _ebookId) external payable {
-        require(ebookPrice[_ebookId] > 0, string.concat("EbookShop: ", ERROR_EBOOK_NOT_ONSHELF));
+    function buyDataItem(uint256 _id) external payable {
+        require(dataItem[_id].status == 1, string.concat("DataMarket: ", ERROR_DATA_NOT_ONSHELF));
 
-        uint256 price = ebookPrice[_ebookId];
-        require(msg.value >= price, string.concat("EbookShop: ", ERROR_NOT_ENOUGH_VALUE));
+        uint256 price = dataItem[_id].price;
+        require(msg.value >= price, string.concat("DataItem: ", ERROR_NOT_ENOUGH_VALUE));
 
-        IERC1155(ebookToken).mint(msg.sender, _ebookId, 1, "");
+        IERC1155(dataToken).mint(msg.sender, _id, 1, "");
 
-        uint256 _groupId = ebookGroup[_ebookId];
+        // send crosschain msg to greenfield to update group info
+        uint256 _groupId = dataItem[_id].group_id;
         address _owner = IERC721NonTransferable(groupToken).ownerOf(_groupId);
         address[] memory _member = new address[](1);
         _member[0] = msg.sender;
         _updateGroup(_owner, _groupId, UPDATE_ADD, _member);
 
+        // update stats
         uint256 _income = price * (100 - tax) / 100;
+        DataItem storage item = dataItem[_id];
+        item.income += _income;
+        item.sale_count += 1;
         income[_owner] += _income;
+
+        // dev fee
+        income[owner] = msg.value - _income;
     }
 
     /**
-     * @dev Provide an ebook's ID to downshelf it.
+     * @dev Provide an data item's ID to update its price.
      *
-     * The ebook will be removed from the shelf and cannot be bought.
-     * Those who have already purchased are not affected.
      */
-    function downshelfEbook(uint256 _ebookId) external {
+    function updatePrice(uint256 _id, uint256 _price) external {
         require(
-            IERC721NonTransferable(objectToken).ownerOf(_ebookId) == msg.sender,
-            string.concat("EbookShop: ", ERROR_INVALID_CALLER)
+            dataItem[_id].owner == msg.sender,
+            string.concat("DataMarket: ", ERROR_INVALID_CALLER)
         );
-        require(ebookPrice[_ebookId] > 0, string.concat("EbookShop: ", ERROR_EBOOK_NOT_ONSHELF));
-
-        ebookPrice[_ebookId] = 0;
+        DataItem storage item = dataItem[_id];
+        item.price = _price;
     }
 
-    /**
-     * @dev Register bucket resource that mirrored from GreenField to BSC.
-     */
-    function registerSeries(string calldata name, uint256 tokenId) external {
+    function delistItem(uint256 _id) external {
         require(
-            IERC721NonTransferable(bucketToken).ownerOf(tokenId) == msg.sender,
-            string.concat("EbookShop: ", ERROR_INVALID_CALLER)
+            dataItem[_id].owner == msg.sender,
+            string.concat("DataMarket: ", ERROR_INVALID_CALLER)
         );
-        require(bytes(name).length > 0, string.concat("EbookShop: ", ERROR_INVALID_NAME));
-        require(seriesId[name] == 0, string.concat("EbookShop: ", ERROR_RESOURCE_EXISTED));
-
-        seriesName[tokenId] = name;
-        seriesId[name] = tokenId;
+        DataItem storage item = dataItem[_id];
+        item.status = 0;
     }
 
-    /**
-     * @dev Register object resource that mirrored from GreenField to BSC.
-     */
-    function registerEbook(
-        string calldata _ebookName,
-        uint256 _ebookId,
-        string calldata _groupName,
-        uint256 _groupId
-    ) external {
+    function listItem(uint256 _id) external {
         require(
-            IERC721NonTransferable(objectToken).ownerOf(_ebookId) == msg.sender,
-            string.concat("EbookShop: ", ERROR_INVALID_CALLER)
+            dataItem[_id].owner == msg.sender,
+            string.concat("DataMarket: ", ERROR_INVALID_CALLER)
         );
-        require(bytes(_ebookName).length > 0, string.concat("EbookShop: ", ERROR_INVALID_NAME));
-        require(ebookId[_ebookName] == 0, string.concat("EbookShop: ", ERROR_RESOURCE_EXISTED));
-
-        ebookName[_ebookId] = _ebookName;
-        ebookId[_ebookName] = _ebookId;
-
-        if (_groupId != 0) {
-            require(
-                IERC721NonTransferable(groupToken).ownerOf(_groupId) == msg.sender,
-                string.concat("EbookShop: ", ERROR_INVALID_CALLER)
-            );
-            require(bytes(_groupName).length > 0, string.concat("EbookShop: ", ERROR_INVALID_NAME));
-
-            groupName[_groupId] = _groupName;
-            groupId[_groupName] = _groupId;
-
-            groupEbook[_groupId] = _ebookId;
-            ebookGroup[_ebookId] = _groupId;
-        }
+        DataItem storage item = dataItem[_id];
+        item.status = 1;
     }
 
-    /**
-     * @dev Register group resource that mirrored from GreenField to BSC.
-     */
-    function registerGroup(string calldata name, uint256 tokenId) external {
-        require(
-            IERC721NonTransferable(groupToken).ownerOf(tokenId) == msg.sender,
-            string.concat("EbookShop: ", ERROR_INVALID_CALLER)
-        );
-        require(bytes(name).length > 0, string.concat("EbookShop: ", ERROR_INVALID_NAME));
-        require(groupId[name] == 0, string.concat("EbookShop: ", ERROR_RESOURCE_EXISTED));
-
-        groupName[tokenId] = name;
-        groupId[name] = tokenId;
+    function withdrawIncome() external {
+        uint256 _income = income[msg.sender];
+        income[msg.sender] = 0;
+        msg.sender.call{value: _income}("");
     }
 
     /*----------------- admin functions -----------------*/
@@ -309,32 +285,32 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
         delete operators[operator];
     }
 
-    function retryPackage(uint8 resoureceType) external override onlyOperator {
-        if (resoureceType == RESOURCE_BUCKET) {
-            _retryBucketPackage();
-        } else if (resoureceType == RESOURCE_OBJECT) {
-            _retryObjectPackage();
-        } else if (resoureceType == RESOURCE_GROUP) {
-            _retryGroupPackage();
-        } else {
-            revert(string.concat("EbookShop: ", ERROR_INVALID_RESOURCE));
-        }
-    }
+    // function retryPackage(uint8 resoureceType) external override onlyOperator {
+    //     if (resoureceType == RESOURCE_BUCKET) {
+    //         _retryBucketPackage();
+    //     } else if (resoureceType == RESOURCE_OBJECT) {
+    //         _retryObjectPackage();
+    //     } else if (resoureceType == RESOURCE_GROUP) {
+    //         _retryGroupPackage();
+    //     } else {
+    //         revert(string.concat("DataMarket: ", ERROR_INVALID_RESOURCE));
+    //     }
+    // }
 
-    function skipPackage(uint8 resoureceType) external override onlyOperator {
-        if (resoureceType == RESOURCE_BUCKET) {
-            _skipBucketPackage();
-        } else if (resoureceType == RESOURCE_OBJECT) {
-            _skipObjectPackage();
-        } else if (resoureceType == RESOURCE_GROUP) {
-            _skipGroupPackage();
-        } else {
-            revert(string.concat("EbookShop: ", ERROR_INVALID_RESOURCE));
-        }
-    }
+    // function skipPackage(uint8 resoureceType) external override onlyOperator {
+    //     if (resoureceType == RESOURCE_BUCKET) {
+    //         _skipBucketPackage();
+    //     } else if (resoureceType == RESOURCE_OBJECT) {
+    //         _skipObjectPackage();
+    //     } else if (resoureceType == RESOURCE_GROUP) {
+    //         _skipGroupPackage();
+    //     } else {
+    //         revert(string.concat("DataMarket: ", ERROR_INVALID_RESOURCE));
+    //     }
+    // }
 
     function setTax(uint256 _tax) external onlyOwner {
-        require(_tax < 100, string.concat("EbookShop: ", ERROR_INVALID_TAX));
+        require(_tax < 100, string.concat("DataMarket: ", ERROR_INVALID_TAX));
         tax = _tax;
     }
 
