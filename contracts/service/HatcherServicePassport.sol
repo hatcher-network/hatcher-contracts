@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 
 import {HatcherServiceCertificate} from "./HatcherServiceCertificate.sol";
 
@@ -13,7 +12,7 @@ import {HatcherServiceCertificate} from "./HatcherServiceCertificate.sol";
  * @title hatcher service passport
  * @author Hatcher Network
  */
-contract HatcherServicePassport is ERC721, Ownable, Initializable {
+contract HatcherServicePassport is ERC721Upgradeable, OwnableUpgradeable {
     using SafeMath for uint256;
 
     struct Passport {
@@ -25,13 +24,14 @@ contract HatcherServicePassport is ERC721, Ownable, Initializable {
 
     HatcherServiceCertificate private _certificateContract; // service info
     mapping(uint256 => Passport) public passports;
-    string private name_;
-    string private symbol_;
     uint256 public totalSupply;
 
     // user => passport IDs
     mapping(address => uint256[]) public userPassports;
     mapping(uint256 => uint256[]) public servicePassports; // service => passport IDs
+
+    // storage gap
+    uint256[25] public _Gap;
 
     // EVENTS
     event NewSubscription(
@@ -48,22 +48,12 @@ contract HatcherServicePassport is ERC721, Ownable, Initializable {
         uint256 expireTime
     );
 
-    constructor() ERC721("", "") {}
-
     function initialize(
         address certificateContract
     ) public initializer {
         _certificateContract = HatcherServiceCertificate(certificateContract);
-        name_ = "Hatcher Service Passport";
-        symbol_ = "HSP";
-    }
-
-    function name() public view override returns (string memory) {
-        return name_;
-    }
-
-    function symbol() public view override returns (string memory) {
-        return symbol_;
+        __ERC721_init("Hatcher Service Passport", "HSP");
+        __Ownable_init();
     }
 
     function _baseURI() internal override pure returns (string memory) {

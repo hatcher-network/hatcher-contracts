@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 
 import {HatcherServicePassport} from "./HatcherServicePassport.sol";
 
@@ -15,7 +13,7 @@ import {HatcherServicePassport} from "./HatcherServicePassport.sol";
  * @author Hatcher Network
  * @notice service provider create their service NFTs
  */
-contract HatcherServiceCertificate is ERC721URIStorage, Ownable, Initializable {
+contract HatcherServiceCertificate is ERC721URIStorageUpgradeable, OwnableUpgradeable {
     using SafeMath for uint256;
 
     uint256 private _mintPrice = 0.01 ether; // 0.01 BNB mint price for each service
@@ -38,13 +36,14 @@ contract HatcherServiceCertificate is ERC721URIStorage, Ownable, Initializable {
     }
 
     HatcherServicePassport private _hatcherServicePassport;
-    string private name_;
-    string private symbol_;
     uint256 public totalSupply;
 
     mapping(uint256 => Service) public services; // serviceId => service
     mapping(address => uint256) public balances; // service revenue
     mapping(address => uint256[]) public userServices; // user => service IDs
+
+    // storage gap
+    uint256[25] public _Gap;
 
     // EVENTS
     event NewService(
@@ -74,8 +73,6 @@ contract HatcherServiceCertificate is ERC721URIStorage, Ownable, Initializable {
     event Withdraw(address indexed to, uint256 amount);
     event UpdateDevTax(uint256 indexed tax);
 
-    constructor() ERC721("", "") {}
-
     function initialize(
         address hatcherServicePassport,
         uint256 devTax
@@ -84,16 +81,9 @@ contract HatcherServiceCertificate is ERC721URIStorage, Ownable, Initializable {
             hatcherServicePassport
         );
         _devTax = devTax;
-        name_ = "Hatcher Service NFT";
-        symbol_ = "HSC";
-    }
-
-    function name() public view override returns (string memory) {
-        return name_;
-    }
-
-    function symbol() public view override returns (string memory) {
-        return symbol_;
+        __ERC721_init("Hatcher Service NFT", "HSC");
+        __ERC721URIStorage_init();
+        __Ownable_init();
     }
 
     /**
