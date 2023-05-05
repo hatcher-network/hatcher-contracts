@@ -5,167 +5,153 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 import {HatcherServiceCertificate} from "./HatcherServiceCertificate.sol";
 
 /**
- * @title hatcher service for user
- * @author Rocklabs
- * @notice this contact is for users who could pay for the service
+ * @title hatcher service passport
+ * @author Hatcher Network
  */
-contract HatcherServicePassport is ERC721, Ownable {
+contract HatcherServicePassport is ERC721, Ownable, Initializable {
     using SafeMath for uint256;
-    // using SafeERC20 for IERC20; // support erc20 token as payment in future
 
-    struct UserInfo {
+    struct Passport {
+        uint256 passportId; // passport to access service
         uint256 serviceId; // service id which is certificated in `HatcherServiceCertificate` contract
-        uint256 passportId; // user passport minted from this contact that is able to use the service
-        uint256 createdTime;
-        uint256 expiredTime;
+        uint256 createTime;
+        uint256 expireTime;
     }
 
-    // private members
     HatcherServiceCertificate private _certificateContract; // service info
-    mapping(uint256 => UserInfo[]) private _serviceUsers; // service => users[]
-    mapping(address => uint256[]) private _userServices; // user => services
+    mapping(uint256 => Passport) public passports;
+    string private name_;
+    string private symbol_;
+    uint256 public totalSupply;
 
-    uint256 private _totalSupply; //
+    // user => passport IDs
+    mapping(address => uint256[]) public userPassports;
+    mapping(uint256 => uint256[]) public servicePassports; // service => passport IDs
 
     // EVENTS
     event NewSubscription(
         address indexed user,
         uint256 indexed serviceId,
-        uint256 indexed passpordId,
-        uint256 createdTime,
-        uint256 expiredTime
+        uint256 indexed passportId,
+        uint256 createTime,
+        uint256 expireTime
     );
-    event RenewSubscription(address indexed user, uint256 indexed serviceId, uint256 expiredTime);
-    event CancelSubscription(address indexed user, uint256 indexed serviceId);
+    event RenewSubscription(
+        address indexed user, 
+        uint256 indexed passId, 
+        uint256 serviceId, 
+        uint256 expireTime
+    );
 
-    constructor(
+    constructor() ERC721("", "") {}
+
+    function initialize(
         address certificateContract
-    ) ERC721("Hatcher Service Passport", "HSP") {
+    ) public initializer {
         _certificateContract = HatcherServiceCertificate(certificateContract);
+        name_ = "Hatcher Service Passport";
+        symbol_ = "HSP";
+    }
+
+    function name() public view override returns (string memory) {
+        return name_;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return symbol_;
+    }
+
+    function _baseURI() internal override pure returns (string memory) {
+        return "gnfd://hatcher/";
     }
 
     /**
      * @notice only supports native token as payment, erc20 is going to be supported asap
      * @dev user subscriptes a service
      * @param serviceId service id
+     * @param period in month
      */
-    function mint(uint256 serviceId) public payable {
+    function subscribe(uint256 serviceId, uint256 period) public payable {
         require(
             _certificateContract.exists(serviceId),
-            "ServiceId does not exist"
+            "NOT EXIST"
+        );
+        require(
+            !subscribed(msg.sender, serviceId),
+            "SUBSCRIBED"
         );
         HatcherServiceCertificate.Service memory s = _certificateContract
             .getServiceInfo(serviceId);
 
         require(
-            !checkUserSubscription(serviceId, msg.sender),
-            "User already has an active subscription"
+            servicePassports[serviceId].length < s.maxUserLimit,
+            "LIMIT REACHED"
         );
+        require(msg.value >= s.price * period, "VALUE TOO SMALL"); // pay for the service
 
-        require(
-            _serviceUsers[serviceId].length < s.maxUserLimit,
-            "exceeded max user subscription limit"
-        );
-        require(msg.value >= s.fee, "Insufficient payment"); // pay for the service
+        _safeMint(msg.sender, totalSupply);
+        totalSupply = totalSupply.add(1);
 
-        _safeMint(msg.sender, _totalSupply);
+        uint256 createTime = block.timestamp;
+        uint256 expireTime = block.timestamp + 30 * 3600 * 24 * period;
 
-        uint256 createdTime = block.timestamp;
-        uint256 expiredTime = block.timestamp + 30 * 3600 * 24;
+        _updateRevenue(serviceId, msg.value); // update revenue for service
 
-        _updateRevenue(serviceId, s.fee); // update revenue for service
+        passports[totalSupply - 1] = Passport({
+            serviceId: serviceId,
+            passportId: totalSupply - 1,
+            createTime: createTime,
+            expireTime: expireTime
+        });
+        userPassports[msg.sender].push(totalSupply - 1);
+        servicePassports[serviceId].push(totalSupply - 1);
 
-        _serviceUsers[serviceId].push(
-            UserInfo({
-                serviceId: serviceId,
-                passportId: _totalSupply,
-                createdTime: createdTime,
-                expiredTime: expiredTime
-            })
-        );
-        _userServices[msg.sender].push(serviceId);
-        _totalSupply++;
-
-        emit NewSubscription(msg.sender, serviceId, _totalSupply - 1, createdTime, expiredTime);
+        emit NewSubscription(msg.sender, serviceId, totalSupply - 1, createTime, expireTime);
     }
 
     /**
-     * @dev renew the service if the service has been expired
-     * @param serviceId service id
-     * @param user who wants to renew the service
+     * @dev renew subscription
+     * @param passId passport ID
      */
-    function renew(uint256 serviceId, address user) public payable {
+    function renew(uint256 passId, uint256 period) public payable {
         require(
-            _certificateContract.exists(serviceId),
-            "ServiceId does not exist"
+            passId < totalSupply,
+            "NO SUBSCRIPTION FOUND"
         );
+        require(ownerOf(passId) == msg.sender, "UNAUTHORIZED");
+
+        Passport storage pass = passports[passId];
         HatcherServiceCertificate.Service memory s = _certificateContract
-            .getServiceInfo(serviceId);
-        require(
-            checkUserSubscription(serviceId, msg.sender),
-            "User does not has an active subscription, mint frist!"
-        );
-        require(
-            !checkValidSubscription(serviceId, msg.sender),
-            "User has an active subscription, no need to renew"
-        );
+            .getServiceInfo(pass.serviceId);
 
-        require(msg.value >= s.fee, "Insufficient payment");
-        _updateRevenue(serviceId, s.fee);
+        require(msg.value >= s.price * period, "VALUE TOO SMALL");
+        _updateRevenue(pass.serviceId, msg.value);
 
-        UserInfo[] storage users = _serviceUsers[serviceId];
+        pass.expireTime += 30 * 3600 * 24 * period;
 
-        uint256 expiredTime = block.timestamp + 30 * 3600 * 24;
-        for (uint i = 0; i < users.length; i++) {
-            if (ownerOf(users[i].passportId) == user) {
-                users[i].expiredTime = expiredTime;
-                _serviceUsers[serviceId] = users;
-            }
-        }
-
-        emit RenewSubscription(msg.sender, serviceId, expiredTime);
+        emit RenewSubscription(msg.sender, passId, pass.serviceId, pass.expireTime);
     }
 
-    /**
-     * @dev cancel subscription
-     * @param serviceId service id
-     */
-    // function cancel(uint256 serviceId, address user) external {
-    //     require(_certificateContract.exists(serviceId), "Token id does not exist");
+    // TODO: override transfer & transferFrom, update userPassport
+    // function transfer() public {
 
-    //     require(checkUserSubscription(serviceId, msg.sender), "User does not has an active subscription");
-    //     require(checkValidSubscription(serviceId, msg.sender), "User has an inactive subscription, fail to cancel subscription");
+    // }
 
-    //     UserInfo[] storage users = _serviceUsers[serviceId];
-    //     for(uint i = 0; i < users.length; i++)
-    //     {
-    //         UserInfo storage u = users[i];
-    //         if(ownerOf(u.passpordId) == user) {
-    //             delete users[i]
-    //             _serviceUsers[serviceId] = users;
-    //             break;
-    //         }
-    //     }
+    // function transferFrom() public {
 
-    //     // delete service from user's subscriptions
-    //     uint256[] storage services = _userServices[msg.sender];
-    //     for(uint i = 0; i < services.length; i++)
-    //     {
-    //         if(services[i] == serviceId) {
-    //             delete services[i];
-    //             _userServices[msg.sender] = services;
-    //             break;
-    //         }
-    //     }
+    // }
 
-    //     emit CancelSubscription(msg.sender, serviceId);
+    // function _updateUserPassports() public {
+
     // }
 
     function _updateRevenue(uint256 serviceId, uint256 amount) internal {
-        require(msg.value >= amount, "Insufficient payment");
+        require(msg.value >= amount, "VALUE TOO SMALL");
         (bool success, ) = address(_certificateContract).call{value: msg.value}(
             abi.encodeWithSignature(
                 "addServiceRevenue(uint256,uint256)",
@@ -173,68 +159,31 @@ contract HatcherServicePassport is ERC721, Ownable {
                 amount
             )
         );
-        require(success, "update revenue failed");
+        require(success, "UPDATE REVENUE FAILED");
     }
 
     /** ********** public call **************** */
     /**
      * @dev check if user already subscribed in service
      */
-    function checkUserSubscription(
-        uint256 serviceId,
-        address user
+    function subscribed(
+        address user,
+        uint256 serviceId
     ) public view returns (bool) {
-        uint256[] memory s = _userServices[user];
+        uint256[] memory s = userPassports[user];
         for (uint i = 0; i < s.length; i++) {
-            if (s[i] == serviceId) return true;
+            if (passports[s[i]].serviceId == serviceId) return true;
         }
         return false;
     }
 
-    /**
-     * @dev check if user's subscription is still valid.
-     */
-    function checkValidSubscription(
-        uint256 serviceId,
-        address user
-    ) public view returns (bool) {
-        uint256 now_ = block.timestamp;
-
-        UserInfo[] memory users = _serviceUsers[serviceId];
-
-        for (uint i = 0; i < users.length; i++) {
-            if (ownerOf(users[i].passportId) == user) {
-                return
-                    (users[i].createdTime <= now_) &&
-                    (now_ <= users[i].expiredTime);
-            }
-        }
-        return false;
+    function subscriptionValid(uint256 passId) public view returns (bool) {
+        return block.timestamp <= passports[passId].expireTime;
     }
 
-    function getUserInfo(
-        uint256 serviceId,
-        address user
-    ) public view returns (UserInfo memory userInfo) {
-        UserInfo[] memory users = _serviceUsers[serviceId];
-        for (uint i = 0; i < users.length; i++) {
-            if (ownerOf(users[i].passportId) == user) userInfo = users[i];
-        }
-    }
-
-    function getServiceUsersCount(
+    function getServiceUserCount(
         uint256 serviceId
     ) public view returns (uint256) {
-        return _serviceUsers[serviceId].length;
-    }
-
-    function getUserServices(
-        address user
-    ) public view returns (uint256[] memory) {
-        return _userServices[user];
-    }
-
-    function getUserServicesCount(address user) public view returns (uint256) {
-        return _userServices[user].length;
+        return servicePassports[serviceId].length;
     }
 }

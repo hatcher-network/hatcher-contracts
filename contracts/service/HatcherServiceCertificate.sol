@@ -2,250 +2,247 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import {HatcherDeveloperBadge} from "./HatcherDeveloperBadge.sol";
 import {HatcherServicePassport} from "./HatcherServicePassport.sol";
 
 /**
- * @title hatcher service
- * @author Rocklabs
- * @notice service provider create their service that will be used for users
+ * @title hatcher service NFT
+ * @author Hatcher Network
+ * @notice service provider create their service NFTs
  */
-contract HatcherServiceCertificate is ERC721, Ownable {
+contract HatcherServiceCertificate is ERC721URIStorage, Ownable, Initializable {
     using SafeMath for uint256;
-    uint256 public constant MINT_PRICE = 0.05 ether;
-    uint256 public constant MAX_SERVICES_PER_USER = 10;
 
-    uint256 private _revenueShareRate; // for developer
+    uint256 private _mintPrice = 0.01 ether; // 0.01 BNB mint price for each service
+    uint256 private _devTax; // dev gets _devTax/100 * revenue
 
     struct Service {
         uint256 serviceId;
-        address owner; // revenue to this address
-        uint256 createdTime;
+        uint256 createTime;
         uint256 userCount;
         uint256 maxUserLimit;
-        uint256 fee; // user should pay this amount for using this service
-        uint256 revenue;
+        uint256 price; // user should pay this amount per month for using this service
+        // service description
+        string logo; // e.g. gnfd://hatcher/1.png
+        string name;
+        string description;
+        string endpoint;
+        string service_type; // chat, text-to-image, etc.
+        uint256 revenue; // service income
+        uint8 status; // 0: inactive, 1: active
     }
 
-    // private members
-    mapping(address => Service[]) private _servicesData; // creator => services
-    HatcherDeveloperBadge private _hatcherDeveloperBadge;
     HatcherServicePassport private _hatcherServicePassport;
-    uint256 private _totalSupply;
+    string private name_;
+    string private symbol_;
+    uint256 public totalSupply;
+
+    mapping(uint256 => Service) public services; // serviceId => service
+    mapping(address => uint256) public balances; // service revenue
+    mapping(address => uint256[]) public userServices; // user => service IDs
 
     // EVENTS
-    event Mint(uint256 indexed serviceId, address indexed owner, uint256 maxUserLimit, uint256 fee);
-    event TransferFrom(uint256 indexed serviceId, address indexed from, address indexed to);
-    event SetServiceProps(uint256 indexed serviceId, address indexed owner, uint256 maxUserLimit, uint256 fee);
+    event NewService(
+        uint256 indexed serviceId, 
+        address indexed owner, 
+        uint256 createTime,
+        uint256 maxUserLimit, 
+        uint256 price,
+        string logo,
+        string name,
+        string description,
+        string endpoint,
+        string service_type
+    );
+    event UpdateService(
+        uint256 indexed serviceId, 
+        address indexed owner, 
+        uint256 maxUserLimit, 
+        uint256 price,
+        string logo,
+        string name,
+        string description,
+        string endpoint,
+        string service_type,
+        uint8 status
+    );
     event Withdraw(address indexed to, uint256 amount);
-    event SetRevenueShare(uint256 indexed revenueShareRate);
+    event UpdateDevTax(uint256 indexed tax);
 
-    constructor(
-        address hatcherDeveloperBadge,
-        uint256 revenueShareRate
-    ) ERC721("Hatcher Service Certificate", "HSC") {
-        _hatcherDeveloperBadge = HatcherDeveloperBadge(hatcherDeveloperBadge);
-        _revenueShareRate = revenueShareRate;
-    }
+    constructor() ERC721("", "") {}
 
-    /**
-     * @notice call this first to set service password contract address
-     * @param hatcherServicePassport contract address
-     */
-    function init(address hatcherServicePassport) external onlyOwner {
+    function initialize(
+        address hatcherServicePassport,
+        uint256 devTax
+    ) public initializer {
         _hatcherServicePassport = HatcherServicePassport(
             hatcherServicePassport
         );
+        _devTax = devTax;
+        name_ = "Hatcher Service NFT";
+        symbol_ = "HSC";
+    }
+
+    function name() public view override returns (string memory) {
+        return name_;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return symbol_;
     }
 
     /**
-     * @notice only badge nft owner could call this method
      * @dev service provider create a new service
      * @param maxUserLimit  maximum number of users using this service set by the service provider
-     * @param fee the amount of payment for the service set by the service provider
-     * @return service  the new service info
+     * @param price the amount of payment for the service set by the service provider
+     * @return s  the new service info
      */
     function mint(
         uint256 maxUserLimit,
-        uint256 fee
-    ) public payable returns (Service memory service) {
-        require(
-            _hatcherDeveloperBadge.balanceOf(msg.sender) > 0,
-            "You need an Hatcher Developer Badge to mint this NFT"
-        );
-        require(msg.value >= MINT_PRICE, "Insufficient payment");
-
-        uint256 servicesPerUser = balanceOf(_msgSender());
-        require(
-            servicesPerUser < MAX_SERVICES_PER_USER,
-            "Exceeded maximum number of tokens per user"
-        );
-
-        uint256 serviceId = _totalSupply;
-        _totalSupply = _totalSupply.add(1);
+        uint256 price,
+        string memory logo,
+        string memory name_,
+        string memory description,
+        string memory endpoint,
+        string memory service_type
+    ) public payable returns (Service memory) {
+        require(msg.value >= _mintPrice, "VALUE TOO SMALL");
+        balances[owner()] += _mintPrice;
+        // mint NFT to creator
+        uint256 serviceId = totalSupply;
+        totalSupply = totalSupply.add(1);
         _safeMint(msg.sender, serviceId);
-        service = _addService(msg.sender, serviceId, maxUserLimit, fee);
+        // service info
+        Service memory s = Service({
+            serviceId: serviceId,
+            createTime: block.timestamp,
+            userCount: 0,
+            maxUserLimit: maxUserLimit,
+            price: price,
+            logo: logo,
+            name: name_,
+            description: description,
+            endpoint: endpoint,
+            service_type: service_type,
+            revenue: 0,
+            status: 1
+        });
+        services[serviceId] = s;
+        userServices[msg.sender].push(serviceId);
 
-        emit Mint(serviceId, _msgSender(), maxUserLimit, fee);
+        emit NewService(
+            serviceId, _msgSender(), block.timestamp, maxUserLimit, 
+            price, logo, name_, description, endpoint, service_type
+        );
+        return s;
     }
+
+    // service owner can set token URI
+    function setTokenURI(uint256 tokenId, string memory uri) public {
+        require(ownerOf(tokenId) == msg.sender, "UNAUTHORIZED");
+        _setTokenURI(tokenId, uri);
+    }
+
+    function setServiceInfo(
+        uint256 serviceId,
+        uint256 maxUserLimit,
+        uint256 price,
+        string memory logo,
+        string memory name_,
+        string memory description,
+        string memory endpoint,
+        string memory service_type,
+        uint8 status
+    ) public returns (Service memory) {
+        require(_exists(serviceId), "serviceId does not exist");
+        Service storage s = services[serviceId];
+        s.maxUserLimit = maxUserLimit;
+        s.price = price;
+        s.logo = logo;
+        s.name = name_;
+        s.description = description;
+        s.endpoint = endpoint;
+        s.service_type = service_type;
+        s.status = status;
+        
+        emit UpdateService(
+            serviceId, msg.sender, maxUserLimit, price, 
+            logo, name_, description, endpoint, service_type, status
+        );
+        return s;
+    }
+
+    // TODO: override transfer & transferFrom, update userPassport
+    // function transfer() public {
+
+    // }
+
+    // function transferFrom() public {
+
+    // }
+
+    // function _updateUserServices() public {
+
+    // }
 
     /** public functions */
     function getServiceUserCount(
         uint256 serviceId
     ) public view returns (uint256) {
-        return _hatcherServicePassport.getServiceUsersCount(serviceId);
+        return _hatcherServicePassport.getServiceUserCount(serviceId);
     }
-
-    function getOwnerServices(
-        address owner
-    ) public view returns (Service[] memory) {
-        Service[] memory s = _servicesData[owner];
-        for (uint i = 0; i < s.length; i++) {
-            s[i].userCount = getServiceUserCount(s[i].serviceId);
-        }
-        return s;
-    }
-
-    // function getSubscribedServices(address user) public view returns(Service[] memory) {
-
-    // }
 
     function getServiceInfo(
         uint256 serviceId
-    ) public view returns (Service memory ret) {
-        require(_exists(serviceId), "Token does not exist");
-        Service[] memory s = _servicesData[ownerOf(serviceId)];
-        for (uint i = 0; i < s.length; i++) {
-            if (s[i].serviceId == serviceId) ret = s[i];
-        }
-        ret.userCount = getServiceUserCount(serviceId);
+    ) public view returns (Service memory) {
+        require(_exists(serviceId), "NOT EXIST");
+        return services[serviceId];
     }
-
-    function getServiceCount(address owner) public view returns (uint256) {
-        return _servicesData[owner].length;
-    }
-
-    function getServiceRevenue(
-        uint256 serviceId
-    ) public view returns (uint256) {
-        return getServiceInfo(serviceId).revenue;
-    }
-
-    /** ************* badge owner call **********/
-    function transferFrom(
-        address from,
-        address to,
-        uint256 serviceId
-    ) public override {
-        Service[] storage s = _servicesData[ownerOf(serviceId)];
-        Service memory temp;
-        for (uint i = 0; i < s.length; i++) {
-            if (s[i].serviceId == serviceId) {
-                temp = s[i];
-                delete s[i];
-            }
-        }
-        _servicesData[from] = s;
-
-        // transfer revenue
-        uint256 revenue = getServiceRevenue(serviceId);
-        uint256 revenueShare = (revenue * _revenueShareRate) / 100;
-        payable(owner()).transfer(revenueShare);
-        payable(ownerOf(serviceId)).transfer(revenue - revenueShare);
-
-        // update to service
-        super.transferFrom(from, to, serviceId);
-        Service memory ns = Service({
-            serviceId: serviceId,
-            owner: to,
-            createdTime: temp.createdTime,
-            maxUserLimit: temp.maxUserLimit,
-            userCount: 0,
-            fee: temp.fee,
-            revenue: 0
-        });
-        _servicesData[to].push(ns);
-
-        emit TransferFrom(serviceId, from, to);
-    }
-
-    function setServiceProps(
-        uint256 serviceId,
-        uint256 maxUserLimit,
-        uint256 fee
-    ) public {
-        require(_exists(serviceId), "serviceId does not exist");
-        Service[] storage s = _servicesData[ownerOf(serviceId)];
-        for (uint i = 0; i < s.length; i++) {
-            if (s[i].serviceId == serviceId && s[i].owner == msg.sender) {
-                s[i].maxUserLimit = maxUserLimit;
-                s[i].fee = fee;
-                _servicesData[msg.sender] = s;
-            }
-        }
-        emit SetServiceProps(serviceId, msg.sender, maxUserLimit, fee);
-    }
-
-    /** *** only passport contract call it ***/
+    
+    // only passport contract call
     function addServiceRevenue(
         uint256 serviceId,
         uint256 amount
     ) external payable {
+        require(msg.value >= amount, "VALUE TOO SMALL");
         require(
             address(_hatcherServicePassport) == msg.sender,
-            "only service passport can call it."
+            "UNAUTHORIZED"
         );
-        Service[] storage s = _servicesData[ownerOf(serviceId)];
-        for (uint i = 0; i < s.length; i++) {
-            if (s[i].serviceId == serviceId)
-                s[i].revenue = s[i].revenue.add(amount);
-        }
-        _servicesData[ownerOf(serviceId)] = s;
+        Service storage s = services[serviceId];
+        s.revenue += amount;
+        // update dev fee & owner balance
+        uint devFee = _devTax / 100 * msg.value;
+        balances[owner()] += devFee;
+        balances[ownerOf(serviceId)] += (amount - devFee);
     }
 
-    /************* owner call *************** */
-    function setRevenueShare(uint256 revenueShareRate) public onlyOwner {
-        require(revenueShareRate <= 100, "Invalid revenue share rate");
-        _revenueShareRate = revenueShareRate;
+    function setDevTax(uint256 _tax) public onlyOwner {
+        require(_tax <= 100, "INVALID");
+        _devTax = _tax;
 
-        emit SetRevenueShare(revenueShareRate);
+        emit UpdateDevTax(_tax);
     }
 
-    // withdraw native token function.
-    function withdraw(address payable _to, uint256 _amount) external onlyOwner {
-        require(_to != address(0x0), " _to cannot be zero address");
-        require(_amount < (MINT_PRICE * _totalSupply), " _amount cannot be larger than total mint amount");
+    function setMintPrice(uint256 _price) public onlyOwner {
+        _mintPrice = _price;
+    }
+
+    // withdraw balance
+    function withdraw(address payable _to, uint256 _amount) external {
+        require(_to != address(0x0), "INVALID TO");
+        require(_amount <= balances[msg.sender], "NOT ENOUGH BALANCE");
+        balances[msg.sender] -= _amount;
 
         (bool success, ) = _to.call{value: _amount}("");
-        require(success, "withdraw failed");
+        require(success, "WITHDRAW FAILED");
 
         emit Withdraw(_to, _amount);
-    }
-
-    /** internal functions */
-    function _addService(
-        address _creator,
-        uint256 _serviceId,
-        uint256 _maxUserLimit,
-        uint256 _fee
-    ) internal returns (Service memory) {
-        Service[] storage s = _servicesData[_creator];
-        Service memory s1 = Service({
-            serviceId: _serviceId,
-            owner: _creator,
-            createdTime: block.timestamp,
-            userCount: 0,
-            maxUserLimit: _maxUserLimit,
-            fee: _fee,
-            revenue: 0
-        });
-        s.push(s1);
-        _servicesData[_creator] = s;
-        return s1;
     }
 
     function exists(uint256 serviceId) public view returns (bool) {
