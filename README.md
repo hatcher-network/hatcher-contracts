@@ -17,24 +17,23 @@ yarn install
 
 The behavious of three contracts below:
 
-    1. `HatcherDeveloperBadge.sol` - The Badge NFT for service providers who coould create a service with it.
-    2. `HatcherServiceCertificate.sol` - Service provider create their service which will be provided for users.    
-    3. `HatcherServicePassport` - User interacts with this contract to subscribe to the service to use.
+    0. `DataMarket.sol` - Data Marketplace on BSC, to trade data objects on the Greenfield network
+    1. `HatcherServiceCertificate.sol` - Service provider publish their services.    
+    2. `HatcherServicePassport` - User interacts with this contract to subscribe to services.
 
-In the example deployment below we use chain is ```mumbai```.
-Using the Polygon network ```(testnet: mumbai)``` as a is a cost cut decision.
+In the example deployment below we use chain is ```bsc_gnfd```.
+Using the BSC-Greenfield network ```(testnet: bsc_gnfd)``` as a is a cost cut decision.
 
 
 ## example
 
-1. Deploy three contracts to ```mumbai```.
+1. Deploy three contracts to ```bsc_gnfd```.
 
     ```angular2html
-    npx hardhat --network mumbai deploy --tags HatcherDeveloperBadge
-    npx hardhat --network mumbai deploy --tags HatcherServiceCertificate
-    npx hardhat --network mumbai deploy --tags HatcherServicePassport
+    npx hardhat --network bsc_gnfd deploy --tags HatcherServiceCertificate
+    npx hardhat --network bsc_gnfd deploy --tags HatcherServicePassport
     ```
 2. Init cerfication contract
     ```angular2html
-    npx hardhat --network mumbai serviceInit
+    npx hardhat --network bsc_gnfd serviceInit
     ```

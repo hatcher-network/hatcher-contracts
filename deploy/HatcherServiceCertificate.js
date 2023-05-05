@@ -1,6 +1,6 @@
 
 const CONFIG = require("../constants/config.json")
-const { ethers } = require("hardhat")
+const { ethers, upgrades } = require("hardhat")
 const {updateConfig} = require("../utils/helpers")
 
 module.exports = async function ({ deployments, getNamedAccounts }) {
@@ -9,20 +9,13 @@ module.exports = async function ({ deployments, getNamedAccounts }) {
 
     console.log(`>>> your address: ${deployer}`)
 
-    const revenueRate = CONFIG["revenueRate"]
-    console.log(`revenue rate: ${revenueRate}`)
+    const tax = CONFIG["tax"]
+    console.log(`tax rate: ${tax}`)
 
-    // get the badge address
-    const badgeAddr = CONFIG["networks"][hre.network.name]["HatcherDeveloperBadge"]
-    console.log(`[${hre.network.name}]  HatcherDeveloperBadge address: ${badgeAddr}`)
+    const HatcherServiceCertificate = await ethers.getContractFactory("HatcherServiceCertificate");
+    const hsc = await upgrades.deployProxy(HatcherServiceCertificate, [tax]);
 
-    const res = await deploy("HatcherServiceCertificate", {
-        from: deployer,
-        args: [badgeAddr, revenueRate],
-        log: true,
-        waitConfirmations: 1,
-    })
-    updateConfig(hre.network.name, 'HatcherServiceCertificate', res.address);
+    updateConfig(hre.network.name, 'HatcherServiceCertificate', hsc.address);
 }
 
 module.exports.tags = ["HatcherServiceCertificate"]

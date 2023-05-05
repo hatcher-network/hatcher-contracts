@@ -63,6 +63,11 @@ module.exports = {
       chainId: 56,
       accounts: [testPrivKey],
     },
+    bsc_gnfd: {
+      url: "https://gnfd-bsc-testnet-dataseed1.bnbchain.org",
+      chainId: 5601,
+      accounts: [testPrivKey],
+    },
     avalanche: {
       url: "https://api.avax.network/ext/bc/C/rpc",
       chainId: 43114,

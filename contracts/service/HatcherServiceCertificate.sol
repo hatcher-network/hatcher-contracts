@@ -16,7 +16,7 @@ import {HatcherServicePassport} from "./HatcherServicePassport.sol";
 contract HatcherServiceCertificate is ERC721URIStorageUpgradeable, OwnableUpgradeable {
     using SafeMath for uint256;
 
-    uint256 private _mintPrice = 0.01 ether; // 0.01 BNB mint price for each service
+    uint256 private _mintPrice; // 0.01 BNB mint price for each service
     uint256 private _devTax; // dev gets _devTax/100 * revenue
 
     struct Service {
@@ -74,16 +74,19 @@ contract HatcherServiceCertificate is ERC721URIStorageUpgradeable, OwnableUpgrad
     event UpdateDevTax(uint256 indexed tax);
 
     function initialize(
-        address hatcherServicePassport,
         uint256 devTax
     ) public initializer {
-        _hatcherServicePassport = HatcherServicePassport(
-            hatcherServicePassport
-        );
+        _mintPrice = 0.01 ether;
         _devTax = devTax;
         __ERC721_init("Hatcher Service NFT", "HSC");
         __ERC721URIStorage_init();
         __Ownable_init();
+    }
+
+    function setPassportContract(address hatcherServicePassport) public onlyOwner {
+        _hatcherServicePassport = HatcherServicePassport(
+            hatcherServicePassport
+        );
     }
 
     /**

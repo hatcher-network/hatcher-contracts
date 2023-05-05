@@ -4,9 +4,10 @@
 		"goerli": 5,
 		"mumbai": 80001,
 		"arbi_goerli": 421613,
-		"op_goerli": 420
+		"op_goerli": 420,
+		"bsc_gnfd": 5601
 	},
-	"revenueRate": 20,
+	"tax": 20,
 	"networks": {
 		"goerli": {
 			"HatcherDeveloperBadge": "",
@@ -27,6 +28,11 @@
 			"HatcherDeveloperBadge": "",
 			"HatcherServiceCertificate": "",
 			"HatcherServicePassport": ""
+		},
+		"bsc_gnfd": {
+			"HatcherDeveloperBadge": "",
+			"HatcherServiceCertificate": "0xcD8C50d498A706076242557EbD4EcdCC6a525118",
+			"HatcherServicePassport": "0xf93DcA58D4a12b16A4686fdf93d0C1a505D8A060"
 		}
 	}
 }
