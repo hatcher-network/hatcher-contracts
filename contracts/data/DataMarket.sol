@@ -15,9 +15,9 @@ import "../greenfield/interface/IERC1155NonTransferable.sol";
  * Resources like bucket,object,group are mirrored to BSC, represented in ERC721 tokens
  *
  * Workflow:
- *  On Greenfield: 
+ *  On Greenfield, use disko app created by hatcher: 
  *      1. user create a bucket
- *      2. user upload data (create a object)
+ *      2. user upload data (create an object)
  *      3. user create a group, and grant the group members access right to the data object
  *      4. trigger a mirror action, mirror bucket,object,group resources to BSC
  *  On BSC:
@@ -27,7 +27,6 @@ import "../greenfield/interface/IERC1155NonTransferable.sol";
  *
  * And an DataItem should be bonding to a group (usage right for this data item)
  * Only members of the group can download the DataItem from greenfield
- *
  */
 contract DataMarket is BucketApp, ObjectApp, GroupApp {
     /*----------------- constants -----------------*/
@@ -284,30 +283,6 @@ contract DataMarket is BucketApp, ObjectApp, GroupApp {
     function removeOperator(address operator) public onlyOwner {
         delete operators[operator];
     }
-
-    // function retryPackage(uint8 resoureceType) external override onlyOperator {
-    //     if (resoureceType == RESOURCE_BUCKET) {
-    //         _retryBucketPackage();
-    //     } else if (resoureceType == RESOURCE_OBJECT) {
-    //         _retryObjectPackage();
-    //     } else if (resoureceType == RESOURCE_GROUP) {
-    //         _retryGroupPackage();
-    //     } else {
-    //         revert(string.concat("DataMarket: ", ERROR_INVALID_RESOURCE));
-    //     }
-    // }
-
-    // function skipPackage(uint8 resoureceType) external override onlyOperator {
-    //     if (resoureceType == RESOURCE_BUCKET) {
-    //         _skipBucketPackage();
-    //     } else if (resoureceType == RESOURCE_OBJECT) {
-    //         _skipObjectPackage();
-    //     } else if (resoureceType == RESOURCE_GROUP) {
-    //         _skipGroupPackage();
-    //     } else {
-    //         revert(string.concat("DataMarket: ", ERROR_INVALID_RESOURCE));
-    //     }
-    // }
 
     function setTax(uint256 _tax) external onlyOwner {
         require(_tax < 100, string.concat("DataMarket: ", ERROR_INVALID_TAX));
