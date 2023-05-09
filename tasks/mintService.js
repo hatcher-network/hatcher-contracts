@@ -16,8 +16,8 @@ module.exports = async function (taskArgs, hre) {
     */
     try {
         let tx = await (await cert.mint(
-            10000, 1000, "https://avatars.githubusercontent.com/u/33003445?s=64&v=4",
-            "Test Service", "Service for test purpose", "https://services.hatcher.network/",
+            10000, 1000, "https://pbs.twimg.com/profile_images/977496875887558661/L86xyLF4_400x400.jpg",
+            "Vitalik's soul", "Talk to Vitalik now!", "https://api.hatcher.network/",
             "chat",
             {
                 value: ethers.utils.parseEther("0.01"),

@@ -170,18 +170,30 @@ contract HatcherServiceCertificate is ERC721URIStorageUpgradeable, OwnableUpgrad
         return s;
     }
 
-    // TODO: override transfer & transferFrom, update userPassport
-    // function transfer() public {
+    // override transfer related func, update userPassport
+    function transferFrom(address from, address to, uint256 tokenId) public override {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
+        _transfer(from, to, tokenId);
+        _updateUserServices(from, to, tokenId);
+    }
 
-    // }
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual override {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
+        _safeTransfer(from, to, tokenId, data);
+        _updateUserServices(from, to, tokenId);
+    }
 
-    // function transferFrom() public {
-
-    // }
-
-    // function _updateUserServices() public {
-
-    // }
+    function _updateUserServices(address from, address to, uint256 tokenId) public {
+        uint256[] storage serviceIds = userServices[from];
+        for(uint i = 0; i < serviceIds.length; i++) {
+            if(serviceIds[i] == tokenId) {
+                delete serviceIds[i];
+                break;
+            }
+        }
+        userServices[from] = serviceIds;
+        userServices[to].push(tokenId);
+    }
 
     /** public functions */
     function getServiceUserCount(

@@ -127,18 +127,30 @@ contract HatcherServicePassport is ERC721Upgradeable, OwnableUpgradeable {
         emit RenewSubscription(msg.sender, passId, pass.serviceId, pass.expireTime);
     }
 
-    // TODO: override transfer & transferFrom, update userPassport
-    // function transfer() public {
+    // override transfer related func, update userPassport
+    function transferFrom(address from, address to, uint256 tokenId) public override {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
+        _transfer(from, to, tokenId);
+        _updateUserPassports(from, to, tokenId);
+    }
 
-    // }
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual override {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: caller is not token owner or approved");
+        _safeTransfer(from, to, tokenId, data);
+        _updateUserPassports(from, to, tokenId);
+    }
 
-    // function transferFrom() public {
-
-    // }
-
-    // function _updateUserPassports() public {
-
-    // }
+    function _updateUserPassports(address from, address to, uint256 tokenId) public {
+        uint256[] storage passIds = userPassports[from];
+        for(uint i = 0; i < passIds.length; i++) {
+            if(passIds[i] == tokenId) {
+                delete passIds[i];
+                break;
+            }
+        }
+        userPassports[from] = passIds;
+        userPassports[to].push(tokenId);
+    }
 
     function _updateRevenue(uint256 serviceId, uint256 amount) internal {
         require(msg.value >= amount, "VALUE TOO SMALL");
