@@ -24,6 +24,7 @@ The behavious of three contracts below:
 1. Deploy three contracts to ```bsc_gnfd```.
 
     ```angular2html
+    npx hardhat --network bsc_gnfd deploy --tags DataMarket
     npx hardhat --network bsc_gnfd deploy --tags HatcherServiceCertificate
     npx hardhat --network bsc_gnfd deploy --tags HatcherServicePassport
     ```
